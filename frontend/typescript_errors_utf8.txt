@@ -1,0 +1,14 @@
+﻿src/components/aura/AuraChat.tsx(4,1): error TS6133: 'cn' is declared but its value is never read.
+src/components/aura/ChatStream.tsx(28,9): error TS6133: 'user' is declared but its value is never read.
+src/components/common/Header.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/common/Sidebar.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/dashboard/Dashboard.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/knowledge/Graph3D.tsx(342,15): error TS6133: 'zoomSpeed' is declared but its value is never read.
+src/components/knowledge/KnowledgeMapHeatmap.tsx(46,24): error TS6133: 'setSelectedNode' is declared but its value is never read.
+src/components/knowledge/KnowledgeMapHeatmap.tsx(62,15): error TS6133: 'heatmapRange' is declared but its value is never read.
+src/components/knowledge/KnowledgeMapHeatmap.tsx(105,43): error TS6133: 'index' is declared but its value is never read.
+src/components/knowledge/KnowledgeVisualizer.tsx(6,11): error TS6133: 'graphData' is declared but its value is never read.
+src/context/AuthContext.tsx(2,16): error TS6133: 'AuthTokens' is declared but its value is never read.
+src/context/AuthContext.tsx(34,17): error TS6133: 'err' is declared but its value is never read.
+src/pages/NotFoundPage.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/services/api.ts(2,28): error TS6133: 'APIError' is declared but its value is never read.

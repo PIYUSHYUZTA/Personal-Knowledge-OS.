@@ -1,0 +1,34 @@
+# Multi-stage Dockerfile for React Frontend (Production)
+# Stage 1: Build
+FROM node:20-alpine as builder
+
+WORKDIR /build
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --only=production && \
+    npm ci && \
+    npm run build
+
+# Stage 2: Runtime (Nginx)
+FROM nginx:1.25-alpine
+
+LABEL maintainer="PKOS Development"
+LABEL version="1.0.0"
+
+# Copy built app from builder
+COPY --from=builder /build/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+
+# Expose port
+EXPOSE 3000
+
+# Run nginx
+CMD ["nginx", "-g", "daemon off;"]

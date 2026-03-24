@@ -1,0 +1,74 @@
+# FastAPI & Web Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# Database & ORM
+sqlalchemy
+psycopg2-binary==2.9.11
+pgvector
+alembic
+
+# Vector Embeddings & NLP
+sentence-transformers
+torch
+numpy
+spacy
+# After install: python -m spacy download en_core_web_sm
+
+# PDF Processing (RAG Pipeline)
+PyMuPDF
+pypdf
+pdfplumber
+pytesseract
+Pillow
+
+# Security & Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+cryptography
+
+# Neo4j (Knowledge Graph - Optional Phase 2)
+neo4j
+
+# Redis (Caching & WebSocket State - Phase 3)
+redis
+
+# Task Scheduling (Phase 5 - Background tasks)
+APScheduler
+
+# Code Sandbox (Phase 6a - Code execution)
+psutil
+RestrictedPython
+
+# Web Scraping & Research (Phase 7a)
+beautifulsoup4
+lxml
+httpx
+ollama
+langgraph
+langchain
+
+# ChromaDB (Fallback Vector Store)
+chromadb[server_only]
+
+# Logging & Monitoring
+python-json-logger
+structlog
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+
+# Code Quality
+black
+flake8
+mypy
+isort
+
+# Development
+python-dotenv
+email-validator

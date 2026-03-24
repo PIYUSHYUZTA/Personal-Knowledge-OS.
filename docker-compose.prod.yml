@@ -1,0 +1,320 @@
+version: '3.9'
+
+# Production Docker Compose Configuration for PKOS (Personal Knowledge OS)
+# Features:
+# - Multi-stage optimized builds
+# - Persistent volume management
+# - Health checks on all services
+# - Resource limits and reservations
+# - Environment-based configuration
+# - No hardcoded credentials
+
+services:
+  # ============================================================================
+  # PostgreSQL with pgvector (Vector Database & Primary Store)
+  # ============================================================================
+  postgres:
+    image: pgvector/pgvector:pg16-latest
+    container_name: pkos-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pkos}
+      POSTGRES_USER: ${POSTGRES_USER:-pkos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - pkos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pkos_user} -d ${POSTGRES_DB:-pkos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    resources:
+      limits:
+        cpus: '1'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 1G
+
+  # ============================================================================
+  # Neo4j (Knowledge Graph Database)
+  # ============================================================================
+  neo4j:
+    image: neo4j:5.17-enterprise
+    container_name: pkos-neo4j
+    restart: always
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-change_me_in_production}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_memory_heap_max__size: 1G
+      NEO4J_dbms_memory_pagecache_size: 512M
+      NEO4J_server_bolt_listen__address: 0.0.0.0:7687
+      NEO4J_server_http_listen__address: 0.0.0.0:7474
+    ports:
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+    volumes:
+      - neo4j_data:/var/lib/neo4j/data
+      - neo4j_logs:/var/lib/neo4j/logs
+    networks:
+      - pkos-network
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "${NEO4J_USER:-neo4j}", "-p", "${NEO4J_PASSWORD:-change_me_in_production}", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    resources:
+      limits:
+        cpus: '1'
+        memory: 1.5G
+      reservations:
+        cpus: '0.5'
+        memory: 1G
+
+  # ============================================================================
+  # Redis (Caching & Session Management)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: pkos-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-change_me_in_production}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pkos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change_me_in_production}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    resources:
+      limits:
+        cpus: '0.5'
+        memory: 512M
+      reservations:
+        cpus: '0.25'
+        memory: 256M
+
+  # ============================================================================
+  # FastAPI Backend (Multi-stage build)
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      args:
+        PYTHON_VERSION: "3.11"
+    image: pkos-backend:prod
+    container_name: pkos-backend
+    restart: always
+    environment:
+      # Core Configuration
+      APP_NAME: ${APP_NAME:-PKOS}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Database Configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pkos_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-pkos}
+      SQLALCHEMY_ECHO: ${SQLALCHEMY_ECHO:-false}
+
+      # Vector Store
+      VECTOR_STORE_TYPE: pgvector
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+
+      # Neo4j Configuration
+      NEO4J_ENABLED: ${NEO4J_ENABLED:-true}
+      NEO4J_URI: bolt://${NEO4J_USER:-neo4j}:${NEO4J_PASSWORD:-change_me_in_production}@neo4j:7687
+      NEO4J_USERNAME: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-change_me_in_production}
+
+      # Redis Configuration
+      REDIS_ENABLED: ${REDIS_ENABLED:-true}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
+      REDIS_CACHE_TTL: ${REDIS_CACHE_TTL:-3600}
+
+      # LLM Configuration (MUST be set in production!)
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+      # JWT Configuration
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_me_in_production_use_strong_key}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+      # CORS Configuration
+      CORS_ORIGINS: ${CORS_ORIGINS:-['http://localhost:3000', 'https://yourdomain.com']}
+
+      # File Upload
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-100}
+
+      # Knowledge Base
+      KB_BASE_PATH: ${KB_BASE_PATH:-/app/knowledge_base}
+
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_kb:/app/knowledge_base
+    networks:
+      - pkos-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    resources:
+      limits:
+        cpus: '2'
+        memory: 2G
+      reservations:
+        cpus: '1'
+        memory: 1G
+
+  # ============================================================================
+  # React Frontend
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        REACT_APP_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    image: pkos-frontend:prod
+    container_name: pkos-frontend
+    restart: always
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      NODE_ENV: production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - pkos-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    resources:
+      limits:
+        cpus: '1'
+        memory: 512M
+      reservations:
+        cpus: '0.5'
+        memory: 256M
+
+  # ============================================================================
+  # Nginx Reverse Proxy (Optional, for production)
+  # ============================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: pkos-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    networks:
+      - pkos-network
+    depends_on:
+      - frontend
+      - backend
+    resources:
+      limits:
+        cpus: '0.5'
+        memory: 256M
+      reservations:
+        cpus: '0.25'
+        memory: 128M
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  pkos-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================================================
+# VOLUMES (Persistent Storage)
+# ============================================================================
+volumes:
+  # Database Volumes
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+
+  neo4j_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NEO4J_DATA_PATH:-./data/neo4j/data}
+
+  neo4j_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NEO4J_LOGS_PATH:-./data/neo4j/logs}
+
+  # Cache Volume
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REDIS_DATA_PATH:-./data/redis}
+
+  # Application Volumes
+  backend_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${UPLOADS_PATH:-./data/uploads}
+
+  backend_kb:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${KB_PATH:-./data/knowledge_base}
+
+  # Nginx Cache
+  nginx_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NGINX_CACHE_PATH:-./data/nginx_cache}
