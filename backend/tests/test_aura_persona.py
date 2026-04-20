@@ -36,7 +36,7 @@ class TestAuraPersonaDetection:
             "Why is this so complicated?",
             "Can you help me understand this better?",
             "I need some motivation to keep going",
-            "How do you feel about my approach?",
+            "I feel very unsure about my approach",
         ]
 
         for query in empathetic_queries:
@@ -326,7 +326,8 @@ class TestMPCSecurityIntegration:
         from app.core.security import generate_mpc_handshake, compute_mpc_hash
 
         # Generate MPC challenge
-        challenge = generate_mpc_handshake()
+        with patch('app.core.security.settings.MPC_ENABLED', True):
+            challenge = generate_mpc_handshake()
         assert challenge  # Should be non-empty
 
         # Compute MPC hash

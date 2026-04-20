@@ -7,11 +7,10 @@ Home server ↔ Mobile bidirectional sync.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
-from uuid import UUID
 from typing import List, Dict, Any
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.models import User
 from app.services.federated_sync import FederatedSyncManager, SyncDelta
 
@@ -44,8 +43,11 @@ async def receive_sync_deltas(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -110,8 +112,11 @@ async def get_deltas_since(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -165,8 +170,11 @@ async def trigger_manual_sync(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -220,15 +228,18 @@ async def get_sync_status(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         sync_manager = FederatedSyncManager(user_id, db_session)
-        status = sync_manager.get_sync_status()
+        status_response = sync_manager.get_sync_status()
 
         return {
             "status": "success",
-            "sync_status": status,
+            "sync_status": status_response,
         }
 
     except Exception as e:
@@ -262,7 +273,10 @@ async def resolve_conflict(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         sync_manager = FederatedSyncManager(user_id, db_session)

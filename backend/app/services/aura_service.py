@@ -30,7 +30,7 @@ class AuraService:
             "name": "Supportive Friend",
             "description": "Empathetic, conversational, warm communication",
             "tone": "friendly",
-            "keywords": ["feel", "help", "understand", "why", "motivate", "encourage"],
+            "keywords": ["feel", "help", "understand", "why", "motivat", "encourage", "struggling", "stuck", "frustrate"],
             "max_context": 5,
         }
     }

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    RELOAD: bool = DEBUG
+    RELOAD: bool = False
 
     # Database - PostgreSQL + pgvector
     DATABASE_URL: str = "postgresql:///pkos_db"
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
 
     # Neo4j (Knowledge Graph - Phase 2)
-    NEO4J_ENABLED: bool = True
+    NEO4J_ENABLED: bool = False
     NEO4J_URI: Optional[str] = "neo4j://localhost:7687"
     NEO4J_USERNAME: Optional[str] = "neo4j"
     NEO4J_PASSWORD: Optional[str] = None
@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     AURA_MODEL_TYPE: str = "local"  # "local", "openai", "anthropic"
     AURA_MAX_CONTEXT_WINDOW: int = 8000
     AURA_RESPONSE_TEMPERATURE: float = 0.7
+    GEMINI_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
+    CLAUDE_API_KEY: Optional[str] = None
 
     # Code Sandbox (Phase 6a - Python-only)
     SANDBOX_ENABLED: bool = True
@@ -117,8 +120,8 @@ class Settings(BaseSettings):
     ]
 
     # Redis Cache (Phase 3)
-    REDIS_ENABLED: bool = True
-    REDIS_HOST: Optional[str] = "redis"
+    REDIS_ENABLED: bool = False
+    REDIS_HOST: Optional[str] = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 

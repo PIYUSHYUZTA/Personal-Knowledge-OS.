@@ -7,24 +7,29 @@ PKOS now has a **production-ready, multi-model LLM integration layer** with agen
 ## What Was Built
 
 ### 1. Multi-Model LLM Provider Factory ✅
+
 - Support for Claude, GPT-4o, and Gemini with automatic fallback
 - Cost tracking and optimization
 - Pricing: Claude $3/$15, GPT-4o $5/$15, Gemini $1.25/$5, Haiku $0.25/$1.25
 - Single environment variable to swap the "brain"
 
 ### 2. Agentic Tool Use ✅
+
 LLMs can now invoke:
+
 - **search_vector_db()** - Semantic search across knowledge base
 - **query_knowledge_graph()** - Neo4j Cypher queries with safety filtering
 - **read_local_file()** - Access files from knowledge base (with path traversal prevention)
 
 ### 3. Self-Correction Loop ✅
+
 - Automatic code validation using lightweight models
 - Multi-iteration correction (max 2 passes)
 - Supports Python, JavaScript, Java, SQL, Bash, YAML, JSON, etc.
 - Non-blocking validation during streaming
 
 ### 4. Production Docker Setup ✅
+
 - Multi-stage optimized builds (90% smaller images)
 - Complete docker-compose.prod.yml with all services
 - PostgreSQL (pgvector) + Neo4j + Redis + FastAPI + React
@@ -32,7 +37,9 @@ LLMs can now invoke:
 - Non-root users, security best practices
 
 ### 5. Model Monitoring & Cost Tracking ✅
+
 Real-time dashboards showing:
+
 - API usage per provider
 - Token consumption and costs
 - Success rates and reliability metrics
@@ -41,6 +48,7 @@ Real-time dashboards showing:
 - 6 new monitoring endpoints
 
 ### 6. Production Security Hardening ✅
+
 - **Rate Limiting**: Per-minute & per-hour limits per user
 - **Request Validation**: Query sanitization, injection detection
 - **API Key Management**: Format validation, safe exposition
@@ -51,14 +59,14 @@ Real-time dashboards showing:
 
 ## Key Metrics
 
-| Metric | Value |
-|--------|-------|
-| Total Code Written | 3,500+ lines |
-| New Services | 6 (tools, validator, monitor, factory, security) |
-| New API Endpoints | 6 monitoring endpoints |
-| Container Size Reduction | 55% (800MB → 400MB) |
-| Startup Time | ~15 seconds |
-| Additional Latency | 50-100ms for tool execution |
+| Metric                   | Value                                            |
+| ------------------------ | ------------------------------------------------ |
+| Total Code Written       | 3,500+ lines                                     |
+| New Services             | 6 (tools, validator, monitor, factory, security) |
+| New API Endpoints        | 6 monitoring endpoints                           |
+| Container Size Reduction | 55% (800MB → 400MB)                              |
+| Startup Time             | ~15 seconds                                      |
+| Additional Latency       | 50-100ms for tool execution                      |
 
 ## How It Works
 
@@ -89,6 +97,7 @@ Complete with Metadata
 ## File Structure
 
 ### New Services
+
 ```
 backend/app/services/
   ├── llm_factory.py          (550 lines) - Multi-model provider
@@ -98,6 +107,7 @@ backend/app/services/
 ```
 
 ### New Routes
+
 ```
 backend/app/routes/
   └── monitoring.py           (300 lines) - 6 analytics endpoints
@@ -107,6 +117,7 @@ backend/app/core/
 ```
 
 ### Production Deployment
+
 ```
 Root/
   ├── docker-compose.prod.yml (350 lines) - Production configuration
@@ -135,6 +146,7 @@ POST /api/stats/llm-usage/reset        - Reset metrics (admin)
 ## Configuration
 
 ### Deploy with Docker Compose
+
 ```bash
 # Copy example config
 cp .env.example .env
@@ -154,6 +166,7 @@ curl http://localhost:8000/health
 ```
 
 ### Environment Variables
+
 ```bash
 # LLM API Keys (required - set at least one)
 CLAUDE_API_KEY=sk-ant-...
@@ -174,7 +187,9 @@ RATE_LIMIT_PER_HOUR=1000
 ## Integration Points
 
 ### WebSocket Streaming
+
 The `/api/v1/stream/query` endpoint now:
+
 - Executes tools automatically if LLM calls them
 - Validates code before streaming
 - Tracks metrics automatically
@@ -182,7 +197,9 @@ The `/api/v1/stream/query` endpoint now:
 - Sends self-correction status messages
 
 ### LLM Factory
+
 All LLM calls automatically:
+
 - Track token usage
 - Calculate costs
 - Record provider selection
@@ -203,6 +220,7 @@ All LLM calls automatically:
 ## Monitoring & Observability
 
 Track:
+
 - Total cost by provider
 - Requests per model
 - Success rates

@@ -6,10 +6,9 @@ Exposes generated intelligence reports and connection maps.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.models import User
 from app.services.intelligence_synthesis import WeeklyIntelligenceReport, get_intelligence_cache
 from app.core.task_scheduler import get_scheduler
@@ -42,8 +41,11 @@ async def get_weekly_report(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -94,8 +96,11 @@ async def regenerate_weekly_report(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -135,7 +140,10 @@ async def get_connection_map(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     # Get cached report
     cache = get_intelligence_cache()
@@ -180,7 +188,10 @@ async def get_expertise_areas(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     # Get cached report
     cache = get_intelligence_cache()
@@ -212,7 +223,10 @@ async def get_weekly_insights(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     # Get cached report
     cache = get_intelligence_cache()

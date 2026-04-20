@@ -75,7 +75,7 @@ class WebContentExtractor:
         Returns: (html_content, metadata)
         """
         metadata = {
-            "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
+            "fetch_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "status_code": None,
             "content_type": None,
             "final_url": url,
@@ -216,6 +216,8 @@ class WebContentExtractor:
             code_blocks = soup.find_all(["code", "pre"])
 
             for idx, block in enumerate(code_blocks):
+                if block.name == "pre" and block.find("code"):
+                    continue
                 # Try to detect language
                 language = "plaintext"
                 class_attr = block.get("class", [])

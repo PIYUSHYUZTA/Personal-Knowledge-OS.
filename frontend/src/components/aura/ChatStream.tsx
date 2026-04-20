@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { Send, Sparkles, User, AlertTriangle, BookOpen, CheckCircle2 } from 'lucide-react'
+import Badge from '@/components/ui/Badge'
 
 interface Message {
   id: string
@@ -32,7 +34,7 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
   const WS_URL = API_URL.replace('http', 'ws')
@@ -215,48 +217,64 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
     switch (msg.type) {
       case 'user':
         return (
-          <div key={msg.id} className="message message-user mb-4 flex justify-end">
-            <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-xs">
-              {msg.content}
+          <div key={msg.id} className="mb-4 flex justify-end">
+            <div className="flex items-start gap-3">
+              <div className="bg-secondary text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-xs shadow-sm shadow-secondary/10">
+                <p className="text-sm leading-relaxed">{msg.content}</p>
+              </div>
+              <div className="w-8 h-8 rounded-full border border-border bg-surface text-text-muted flex items-center justify-center shrink-0">
+                <User size={14} />
+              </div>
             </div>
           </div>
         )
 
       case 'assistant':
         return (
-          <div key={msg.id} className="message message-assistant mb-4 flex justify-start">
-            <div className="bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50 rounded-lg px-4 py-2 max-w-2xl">
-              <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+          <div key={msg.id} className="mb-4 flex justify-start">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0 shadow-glow-sm">
+                <Sparkles size={14} />
+              </div>
+              <div className="bg-surface/80 backdrop-blur-sm border border-border/80 rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-2xl shadow-sm">
+                <div className="text-sm text-text-body whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+              </div>
             </div>
           </div>
         )
 
       case 'status':
         return (
-          <div
-            key={msg.id}
-            className="message message-status mb-2 text-center text-sm text-slate-500"
-          >
-            {msg.content}
-            {msg.confidence && (
-              <span className="ml-2 text-green-600">
-                ✓ {(msg.confidence * 100).toFixed(0)}%
-              </span>
-            )}
+          <div key={msg.id} className="mb-3 text-center">
+            <span className="inline-flex items-center gap-2 text-xs text-text-muted bg-surface/60 border border-border/40 px-3 py-1.5 rounded-full">
+              {msg.content}
+              {msg.confidence && (
+                <Badge variant="success" size="sm">
+                  <CheckCircle2 size={10} className="mr-0.5" />
+                  {(msg.confidence * 100).toFixed(0)}%
+                </Badge>
+              )}
+            </span>
           </div>
         )
 
       case 'sources':
         return (
-          <div key={msg.id} className="message message-sources mb-4 text-sm">
-            <div className="bg-amber-50 dark:bg-amber-900 border-l-4 border-amber-400 p-3 rounded">
-              <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">
-                Sources ({msg.sources?.length || 0})
-              </h4>
-              <div className="space-y-1">
+          <div key={msg.id} className="mb-4">
+            <div className="bg-warning/5 border border-warning/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen size={14} className="text-warning" />
+                <h4 className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  Sources ({msg.sources?.length || 0})
+                </h4>
+              </div>
+              <div className="space-y-1.5">
                 {msg.sources?.map((source, i) => (
-                  <div key={i} className="text-xs text-amber-800 dark:text-amber-100">
-                    <strong>{source.file_name}</strong> ({(source.similarity * 100).toFixed(0)}%)
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-text-body truncate mr-3">{source.file_name}</span>
+                    <Badge variant="outline" size="sm">
+                      {(source.similarity * 100).toFixed(0)}%
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -266,9 +284,10 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
 
       case 'error':
         return (
-          <div key={msg.id} className="message message-error mb-4">
-            <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-400 p-3 rounded text-red-800 dark:text-red-100 text-sm">
-              ⚠️ {msg.content}
+          <div key={msg.id} className="mb-4">
+            <div className="bg-error/5 border border-error/20 rounded-xl p-3 flex items-start gap-2">
+              <AlertTriangle size={14} className="text-error shrink-0 mt-0.5" />
+              <p className="text-sm text-error">{msg.content}</p>
             </div>
           </div>
         )
@@ -279,27 +298,32 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="bg-slate-100 dark:bg-slate-900 border-b p-4">
+      <div className="bg-surface border-b border-border px-5 py-3.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Technical Reasoning Engine</h2>
-          <div
-            className={`w-3 h-3 rounded-full ${
-              isConnected ? 'bg-green-500' : 'bg-red-500'
-            }`}
-            title={isConnected ? 'Connected' : 'Disconnected'}
-          />
+          <div>
+            <h2 className="text-base font-semibold text-primary tracking-tight">Technical Reasoning Engine</h2>
+            <p className="text-[11px] text-text-muted mt-0.5">Real-time streaming analysis</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={isConnected ? 'success' : 'error'} dot size="sm">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </Badge>
+          </div>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto p-5 space-y-2">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-500">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-2">Welcome to AURA</h3>
-              <p>Ask any technical question about your knowledge base</p>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center max-w-sm">
+              <div className="w-14 h-14 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-5 border border-secondary/20">
+                <Sparkles size={24} />
+              </div>
+              <h3 className="text-base font-semibold text-primary mb-2 tracking-tight">Welcome to AURA</h3>
+              <p className="text-sm text-text-muted leading-relaxed">Ask any technical question about your knowledge base</p>
             </div>
           </div>
         ) : (
@@ -311,29 +335,42 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
       </div>
 
       {/* Input Area */}
-      <div className="border-t bg-slate-50 dark:bg-slate-900 p-4">
+      <div className="border-t border-border bg-surface p-4">
         <div className="flex gap-2">
           <input
+            id="chatstream-input"
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
             placeholder="Ask a technical question..."
             disabled={!isConnected || isLoading}
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           />
           <button
+            id="chatstream-send"
             onClick={handleSendMessage}
             disabled={!isConnected || isLoading || !inputValue.trim()}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2.5 bg-secondary hover:bg-secondary/90 text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] shadow-sm shadow-secondary/20 cursor-pointer"
           >
-            {isLoading ? 'Thinking...' : 'Send'}
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Thinking
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <Send size={14} />
+                Send
+              </span>
+            )}
           </button>
         </div>
 
         {!isConnected && (
-          <div className="text-sm text-red-600 mt-2">
-            ⚠️ Connection lost. Reconnecting...
+          <div className="flex items-center gap-2 mt-2 text-xs text-error">
+            <AlertTriangle size={12} />
+            Connection lost. Reconnecting...
           </div>
         )}
       </div>

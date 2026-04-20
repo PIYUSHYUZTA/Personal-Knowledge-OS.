@@ -175,6 +175,7 @@ class TestTechnicalReasoningEngine:
                 file_name="db_optimization.pdf",
                 chunk_text="Use indexes and query planning.",
                 similarity_score=0.85,
+                metadata={},
             )
         ]
 
@@ -194,6 +195,7 @@ class TestTechnicalReasoningEngine:
                 file_name="embeddings.pdf",
                 chunk_text="Vector embeddings represent text as high-dimensional vectors.",
                 similarity_score=0.9,
+                metadata={},
             )
         ]
 
@@ -286,6 +288,7 @@ class TestParentDocumentRetrieval:
                     file_name="file1.pdf",
                     chunk_text="First result",
                     similarity_score=0.9,
+                    metadata={},
                 ),
                 "Parent context from file 1...",
             ),
@@ -296,6 +299,7 @@ class TestParentDocumentRetrieval:
                     file_name="file2.pdf",
                     chunk_text="Second result",
                     similarity_score=0.8,
+                    metadata={},
                 ),
                 "Parent context from file 2...",
             ),
@@ -347,6 +351,7 @@ class TestEndToEndPipeline:
                 file_name="best_practices.pdf",
                 chunk_text="Always use indexing for frequently queried columns.",
                 similarity_score=0.85,
+                metadata={},
             ),
             SearchResult(
                 chunk_id=uuid4(),
@@ -354,6 +359,7 @@ class TestEndToEndPipeline:
                 file_name="optimization.pdf",
                 chunk_text="Query optimization reduces latency significantly.",
                 similarity_score=0.81,
+                metadata={},
             ),
         ]
 

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Depends, HTTPException, status, WebSocket,
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.core.sandbox import SandboxExecution
 from app.services.sandbox_executor import SandboxExecutor, ExecutionRequest
 from app.schemas import (
@@ -46,8 +46,17 @@ async def execute_code(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        # Validate UUID format (User IDs are stored as strings)
+        UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid user ID format")
+    
+    user = db_session.query(User).filter(User.id == user_id_str).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -55,7 +64,7 @@ async def execute_code(
         executor = SandboxExecutor(db_session)
         exec_request = ExecutionRequest(
             code=request.code,
-            user_id=user_id,
+            user_id=user_id_str,
             timeout_seconds=request.timeout_seconds,
             include_in_knowledge_base=request.include_in_knowledge_base,
         )
@@ -96,7 +105,10 @@ def get_execution_result(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         executor = SandboxExecutor(db_session)
@@ -139,7 +151,10 @@ def get_execution_history(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         executor = SandboxExecutor(db_session)
@@ -206,7 +221,11 @@ async def websocket_execute_stream(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
     await websocket.accept()
     logger.info(f"WebSocket connection established for user {user_id}")

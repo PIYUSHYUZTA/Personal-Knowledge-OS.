@@ -7,10 +7,9 @@ Exposes expertise heatmaps and cluster analysis for 3D visualization.
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.models import User
 from app.services.query_analytics import get_query_analytics
 
@@ -52,8 +51,11 @@ async def record_node_interaction(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -92,8 +94,11 @@ async def run_knowledge_decay(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -134,8 +139,11 @@ async def get_expertise_heatmap(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -172,8 +180,11 @@ async def get_expertise_clusters(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -210,8 +221,11 @@ async def get_expertise_summary(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -270,8 +284,11 @@ async def get_enhanced_knowledge_map(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -369,7 +386,10 @@ async def record_node_interaction_legacy(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     hit_weights = {"click": 0.5, "search": 1.0, "view": 0.2}
     weight = hit_weights.get(body.interaction_type, 0.3)

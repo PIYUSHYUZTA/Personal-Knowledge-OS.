@@ -11,12 +11,62 @@ const api: AxiosInstance = axios.create({
   },
 })
 
-// Request interceptor: Add JWT token to headers
+// Helper to get current token
+const getToken = (): string | null => localStorage.getItem('access_token')
+
+// ── Toast bridge ──────────────────────────────────────────
+// The API service can't use React hooks directly, so we use
+// a simple event-based bridge that the ToastProvider listens to.
+type ToastEvent = {
+  type: 'success' | 'error' | 'warning' | 'info'
+  title: string
+  description?: string
+}
+
+const toastListeners: Array<(event: ToastEvent) => void> = []
+
+export function onApiToast(listener: (event: ToastEvent) => void) {
+  toastListeners.push(listener)
+  return () => {
+    const idx = toastListeners.indexOf(listener)
+    if (idx >= 0) toastListeners.splice(idx, 1)
+  }
+}
+
+function emitToast(event: ToastEvent) {
+  toastListeners.forEach(fn => fn(event))
+}
+
+// ── Session-expired bridge ────────────────────────────────
+// Allows AuthContext to register its logout function so the
+// API layer can trigger a reactive logout on 401 without
+// using window.location (which causes hard page reloads).
+let sessionExpiredCallback: (() => void) | null = null
+
+export function onSessionExpired(callback: () => void) {
+  sessionExpiredCallback = callback
+  return () => { sessionExpiredCallback = null }
+}
+
+// Auth endpoints that should NOT have tokens injected
+const AUTH_ENDPOINTS = ['/auth/register', '/auth/login']
+
+function isAuthEndpoint(url?: string): boolean {
+  if (!url) return false
+  return AUTH_ENDPOINTS.some(ep => url.includes(ep))
+}
+
+// Request interceptor: Add JWT token to headers (skip auth endpoints)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
+    const token = getToken()
+    if (token && !isAuthEndpoint(config.url)) {
       config.headers.Authorization = `Bearer ${token}`
+      // Also add token as query param for backend endpoints that expect it
+      if (!config.params) config.params = {}
+      if (!config.params.token) {
+        config.params.token = token
+      }
     }
     return config
   },
@@ -27,12 +77,33 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
+    const status = error.response?.status
+    const data = error.response?.data as Record<string, unknown> | undefined
+
+    if (status === 401 && !isAuthEndpoint(error.config?.url)) {
+      // Token expired or invalid — only handle for non-auth endpoints
+      // (auth endpoints handle their own 401s via the AuthContext error state)
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      window.location.href = '/login'
+      emitToast({ type: 'error', title: 'Session expired', description: 'Please log in again.' })
+      // Trigger reactive logout via AuthContext (sets user=null),
+      // which makes ProtectedRoute redirect to /login via React Router.
+      // No window.location — no hard page reload.
+      if (sessionExpiredCallback) sessionExpiredCallback()
+    } else if (status === 403) {
+      emitToast({ type: 'error', title: 'Access denied', description: 'You don\'t have permission for this action.' })
+    } else if (status === 404) {
+      emitToast({ type: 'warning', title: 'Not found', description: 'The requested resource was not found.' })
+    } else if (status === 422) {
+      const detail = data?.detail
+      const msg = Array.isArray(detail) ? detail[0]?.msg : typeof detail === 'string' ? detail : 'Validation error'
+      emitToast({ type: 'warning', title: 'Validation error', description: String(msg) })
+    } else if (status && status >= 500) {
+      emitToast({ type: 'error', title: 'Server error', description: 'Something went wrong. Please try again later.' })
+    } else if (!error.response) {
+      emitToast({ type: 'error', title: 'Network error', description: 'Could not reach the server. Check your connection.' })
     }
+
     return Promise.reject(error)
   }
 )
@@ -101,7 +172,7 @@ export const knowledgeAPI = {
     formData.append('file', file)
     formData.append('source_type', sourceType)
 
-    const response = await api.post('/ingestion/upload', formData, {
+    const response = await api.post('/knowledge/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -6,15 +6,27 @@ Handles vector generation for semantic search.
 from typing import List
 import numpy as np
 import logging
+import os
 
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    raise ImportError("sentence-transformers not installed. Run: pip install sentence-transformers")
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+_SentenceTransformer = None
+
+def _get_sentence_transformer():
+    """Lazy import of sentence_transformers to speed up startup."""
+    global _SentenceTransformer
+    if _SentenceTransformer is None:
+        try:
+            from sentence_transformers import SentenceTransformer as ST
+            _SentenceTransformer = ST
+        except ImportError:
+            raise ImportError("sentence-transformers not installed. Run: pip install sentence-transformers")
+    return _SentenceTransformer
 
 class EmbeddingService:
     """Generates and manages embeddings for semantic search."""
@@ -26,7 +38,8 @@ class EmbeddingService:
         """Lazy load embedding model."""
         if cls._model is None:
             logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
-            cls._model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            ST = _get_sentence_transformer()
+            cls._model = ST(settings.EMBEDDING_MODEL)
             logger.info("Embedding model loaded successfully")
         return cls._model
 

@@ -70,9 +70,13 @@ class SandboxExecution:
         """
         blocked_modules = blocked_modules or []
 
+        # Sanitize line continuations for string matching
+        import re
+        sanitized_code = re.sub(r'\\\s*\n', '', code)
+
         # Check for dangerous module imports
         for module in blocked_modules:
-            if f"import {module}" in code or f"from {module}" in code:
+            if f"import {module}" in sanitized_code or f"from {module}" in sanitized_code or re.search(rf'import\s+{module}\b', sanitized_code):
                 return False, f"Blocked module: {module}"
 
         # Check for dangerous functions
@@ -82,6 +86,8 @@ class SandboxExecution:
             ("__import__", "__import__() is not allowed"),
             ("open(", "File I/O is not allowed"),
             ("compile(", "Dynamic compilation is not allowed"),
+            ("input(", "input() is not allowed"),
+            ("raw_input(", "raw_input() is not allowed"),
         ]
 
         for pattern, error_msg in dangerous_patterns:
@@ -155,17 +161,15 @@ class SandboxExecution:
             # Step 2: Create subprocess to execute code
             process = await asyncio.create_subprocess_exec(
                 "python",
-                "-c",
-                code,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.DEVNULL,
+                stdin=asyncio.subprocess.PIPE,
             )
 
             # Step 3: Monitor execution with timeout
             try:
                 stdout_data, stderr_data = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout_seconds
+                    process.communicate(input=code.encode("utf-8")), timeout=timeout_seconds
                 )
 
                 # Decode output

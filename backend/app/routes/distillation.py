@@ -6,10 +6,9 @@ Exposes the long-term memory compression pipeline.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.models import User
 from app.services.knowledge_distillation import KnowledgeDistillationEngine
 
@@ -38,8 +37,11 @@ async def trigger_distillation(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -77,8 +79,11 @@ async def get_distillation_metrics(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
-    user = db_session.query(User).filter(User.id == user_id).first()
+    try:
+        user_id = extract_user_id_from_token(payload)
+        user = db_session.query(User).filter(User.id == user_id).first()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -115,7 +120,10 @@ async def get_distillation_status(
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         # In production, this would query a job history table

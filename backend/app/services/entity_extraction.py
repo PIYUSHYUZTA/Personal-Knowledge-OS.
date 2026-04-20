@@ -65,6 +65,7 @@ class EntityExtractor:
         "scikit-learn",
         "pandas",
         "numpy",
+        "neo4j",
     }
 
     LANGUAGE_KEYWORDS = {

@@ -60,7 +60,7 @@ export const KnowledgeProvider: React.FC<{ children: ReactNode }> = ({ children 
     setIsLoading(true)
     try {
       const response = await knowledgeAPI.getSources()
-      setSources(response.sources || [])
+      setSources(Array.isArray(response) ? response : response.sources || [])
     } catch (err: any) {
       setError('Failed to fetch sources')
       console.error('Get sources error:', err)

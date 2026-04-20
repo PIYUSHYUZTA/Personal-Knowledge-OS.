@@ -324,7 +324,7 @@ class TestPayloadLimits:
         """Limit: Many code blocks handled efficiently."""
         # Generate HTML with 1000 code blocks
         code_blocks = "".join(
-            [f'<pre><code class="language-python">print({i})</code></pre>' for i in range(1000)]
+            [f'<pre><code class="language-python">print("hello world {i}")</code></pre>' for i in range(1000)]
         )
         html = f"<html><body>{code_blocks}</body></html>"
 

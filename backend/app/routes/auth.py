@@ -16,23 +16,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# ============================================================================
-# HELPER FUNCTION
-# ============================================================================
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-def get_current_user(token: str = None, db: Session = Depends(get_db)) -> User:
+security = HTTPBearer(auto_error=False)
+
+def get_current_user(
+    token: str = None, 
+    bearer: HTTPAuthorizationCredentials = Depends(security), 
+    db: Session = Depends(get_db)
+) -> User:
     """
     Dependency to extract and verify current authenticated user from JWT.
     Can be used in any protected route.
     """
-    # Token can be extracted from Authorization header in actual implementation
-    if not token:
+    actual_token = token
+    if not actual_token and bearer:
+        actual_token = bearer.credentials
+
+    if not actual_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
 
-    user = AuthService.verify_session(db, token)
+    user = AuthService.verify_session(db, actual_token)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

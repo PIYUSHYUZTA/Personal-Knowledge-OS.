@@ -134,7 +134,7 @@ class AuthService:
             return None
 
         try:
-            user = db.query(User).filter(User.id == UUID(user_id)).first()
+            user = db.query(User).filter(User.id == user_id).first()
             return user if user and user.is_active else None
         except Exception as e:
             logger.error(f"Error verifying session: {e}")
@@ -156,7 +156,7 @@ class AuthService:
         if not user_id:
             raise ValueError("Invalid refresh token")
 
-        user = db.query(User).filter(User.id == UUID(user_id)).first()
+        user = db.query(User).filter(User.id == user_id).first()
         if not user or not user.is_active:
             raise ValueError("User not found or inactive")
 

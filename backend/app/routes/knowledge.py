@@ -31,102 +31,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Management"])
 
-# ============================================================================
-# HELPER - Get current user
-# ============================================================================
-
-
-def get_current_user(token: str = Query(None), db: Session = Depends(get_db)) -> User:
-    """Extract user from JWT token."""
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token required",
-        )
-
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    return db.query(User).filter(User.id == user_id).first()
-
-
-# ============================================================================
-# SEMANTIC SEARCH
-# ============================================================================
-
-
-@router.post(
-    "/search",
-    response_model=SearchResponse,
-    summary="Semantic search across knowledge base",
-    description="Search user's knowledge base using semantic similarity",
-)
-def semantic_search(
-    request: SearchRequest,
-    token: str = Query(None),
-    db: Session = Depends(get_db),
-):
-    """
-    Perform semantic search across all user's knowledge.
-
-    **Request Body:**
-    - query: Search query (min 3 chars)
-    - top_k: Number of results (1-50)
-    - min_similarity: Minimum similarity score (0-1)
-
-    **Returns:**
-    - query: Original search query
-    - results: List of SearchResult objects
-    - total_results: Number of results found
-    """
-    try:
-        user = get_current_user(token, db)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-            )
-
-        logger.info(f"Semantic search for user {user.id}: {request.query}")
-
-        results = KnowledgeService.semantic_search(
-            db,
-            user.id,
-            request.query,
-            top_k=request.top_k,
-            min_similarity=request.min_similarity,
-        )
-
-        return SearchResponse(
-            query=request.query,
-            results=results,
-            total_results=len(results),
-        )
-
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Search failed",
-        )
-
-
-# ============================================================================
-# KNOWLEDGE SOURCES
-# ============================================================================
-
-
+from app.routes.auth import get_current_user
 @router.get(
     "/sources",
     response_model=List[KnowledgeSourceResponse],
@@ -134,7 +39,7 @@ def semantic_search(
     description="Get all uploaded files and sources",
 )
 def get_sources(
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -147,7 +52,6 @@ def get_sources(
     - List of KnowledgeSource objects
     """
     try:
-        user = get_current_user(token, db)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -174,7 +78,7 @@ def get_sources(
 )
 def delete_source(
     source_id: str,
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -190,7 +94,6 @@ def delete_source(
     - Success message
     """
     try:
-        user = get_current_user(token, db)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -233,7 +136,7 @@ async def upload_file(
     file: UploadFile,
     chunk_size: int = Query(512),
     chunk_overlap: int = Query(50),
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
@@ -257,7 +160,6 @@ async def upload_file(
     """
 
     try:
-        user = get_current_user(token, db)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -368,7 +270,7 @@ async def upload_file(
     description="Retrieve entities and relationships for visualization",
 )
 def get_graph(
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -384,7 +286,6 @@ def get_graph(
     - relationships: List of relationships
     """
     try:
-        user = get_current_user(token, db)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -422,7 +323,7 @@ def get_graph(
     description="Get overview of ingested knowledge",
 )
 def get_stats(
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -437,7 +338,6 @@ def get_stats(
     - by_type: Breakdown by source type
     """
     try:
-        user = get_current_user(token, db)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

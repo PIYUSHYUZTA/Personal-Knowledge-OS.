@@ -153,3 +153,31 @@ def verify_mpc_handshake(
 def generate_session_token() -> str:
     """Generate a secure random session token."""
     return secrets.token_urlsafe(64)
+
+
+def extract_user_id_from_token(payload: dict) -> str:
+    """
+    Safely extract and validate user ID from JWT payload.
+    
+    Args:
+        payload: JWT payload dict
+        
+    Returns:
+        User ID as string
+        
+    Raises:
+        ValueError: If user ID is missing or invalid
+    """
+    from uuid import UUID
+    
+    user_id = payload.get("sub")
+    if not user_id:
+        raise ValueError("Missing 'sub' claim in token")
+    
+    # Validate UUID format
+    try:
+        UUID(user_id)
+    except (ValueError, AttributeError):
+        raise ValueError(f"Invalid user ID format: {user_id}")
+    
+    return user_id

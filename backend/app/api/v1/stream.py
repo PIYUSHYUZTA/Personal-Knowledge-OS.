@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 import logging
 import json
-from typing import Optional
+from typing import Optional, Dict, List
 import asyncio
 from uuid import UUID
 
@@ -56,7 +56,7 @@ class ConnectionManager:
     """Manages WebSocket connections for real-time communication."""
 
     def __init__(self):
-        self.active_connections: dict[str, list[WebSocket]] = {}
+        self.active_connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: str):
         """Register a WebSocket connection."""

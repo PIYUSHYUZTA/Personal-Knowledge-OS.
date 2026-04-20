@@ -19,6 +19,8 @@ from app.models import ConversationHistory, User
 from app.schemas import SearchResult
 from app.services.knowledge_service import KnowledgeService
 from app.services.parent_retrieval import ParentDocumentRetriever
+from app.services.llm_factory import LLMFactory
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ class TechnicalReasoningContext:
         self.context = None
         self.key_concerns = []
         self.recommended_approach = None
+        self.identified_domains = []
 
 
 class TechnicalReasoningEngine:
@@ -48,10 +51,12 @@ class TechnicalReasoningEngine:
     # Technical reasoning rules and patterns
     TECHNICAL_DOMAINS = {
         "database": [
+            "database",
             "query optimization",
             "indexing strategies",
             "normalization",
             "transaction management",
+            "sql",
         ],
         "system_design": [
             "scalability",
@@ -61,14 +66,18 @@ class TechnicalReasoningEngine:
             "partitioning",
         ],
         "security": [
+            "security",
             "encryption",
             "authentication",
             "authorization",
             "injection attacks",
+            "sql injection",
             "xss",
             "csrf",
         ],
         "performance": [
+            "performance",
+            "optimize",
             "latency",
             "throughput",
             "memory usage",
@@ -121,11 +130,11 @@ class TechnicalReasoningEngine:
             context.key_concerns.append("explanation")
         if "how" in query_lower:
             context.key_concerns.append("implementation")
-        if "best" in query_lower or "optimal" in query_lower:
+        if "best" in query_lower or "optimal" in query_lower or "optimize" in query_lower:
             context.key_concerns.append("optimization")
         if "secure" in query_lower or "security" in query_lower:
             context.key_concerns.append("security")
-        if "performance" in query_lower:
+        if "performance" in query_lower or "optimize" in query_lower or "latency" in query_lower:
             context.key_concerns.append("performance")
 
         logger.info(
@@ -152,62 +161,73 @@ class TechnicalReasoningEngine:
         query = context.query
         response_parts = []
 
-        # Build response based on identified domains and concerns
-        if not context.retrieved_results:
-            # No knowledge base context available
-            response = TechnicalReasoningEngine._generate_general_response(query)
-            confidence = 0.5
-        else:
-            # Build knowledge-based response
-            response_parts.append("## Technical Analysis\n")
+        # Attempt to use LLMFactory for real response
+        prompt = f"Query: {query}\n\nContext:\n{parent_context or context.retrieved_results}"
+        try:
+            provider = LLMFactory.get_provider()
+            llm_response = asyncio.run(provider.generate(
+                prompt=prompt,
+                system_prompt="You are AURA, a highly intelligent personal knowledge OS assistant."
+            ))
+            response = llm_response.get("content", str(llm_response))
+            confidence = 0.95
+        except Exception as e:
+            logger.warning(f"Using fallback response due to LLM error: {e}")
+            if not context.retrieved_results:
+                # No knowledge base context available
+                response = TechnicalReasoningEngine._generate_general_response(query)
+                confidence = 0.5
+            else:
+                # Build knowledge-based response
+                response_parts.append("## Technical Analysis\n")
 
-            # Add explicit answer
-            response_parts.append(f"**Query**: {query}\n")
+                # Add explicit answer
+                response_parts.append(f"**Query**: {query}\n")
 
-            if parent_context:
-                response_parts.append("### Relevant Context from Knowledge Base\n")
-                response_parts.append(f"```\n{parent_context[:1000]}\n```\n")
+                if parent_context:
+                    response_parts.append("### Relevant Context from Knowledge Base\n")
+                    response_parts.append(f"```\n{parent_context[:1000]}\n```\n")
 
-            # Domain-specific analysis
-            if "database" in context.identified_domains:
-                response_parts.append(
-                    "\n### Database Considerations\n"
-                    "- Use appropriate indexes for query optimization\n"
-                    "- Consider normalized vs denormalized schemas\n"
-                    "- Implement query caching where beneficial\n"
-                )
+                # Domain-specific analysis
+                if "database" in context.identified_domains:
+                    response_parts.append(
+                        "\n### Database Considerations\n"
+                        "- Use appropriate indexes for query optimization\n"
+                        "- Consider normalized vs denormalized schemas\n"
+                        "- Implement query caching where beneficial\n"
+                    )
 
-            if "security" in context.identified_domains:
-                response_parts.append(
-                    "\n### Security Recommendations\n"
-                    "- Validate and sanitize all inputs\n"
-                    "- Use parameterized queries to prevent SQL injection\n"
-                    "- Implement proper authentication and authorization\n"
-                    "- Apply principle of least privilege\n"
-                )
+                if "security" in context.identified_domains:
+                    response_parts.append(
+                        "\n### Security Recommendations\n"
+                        "- Validate and sanitize all inputs\n"
+                        "- Use parameterized queries to prevent SQL injection\n"
+                        "- Implement proper authentication and authorization\n"
+                        "- Apply principle of least privilege\n"
+                    )
 
-            if "performance" in context.identified_domains:
-                response_parts.append(
-                    "\n### Performance Optimization\n"
-                    "- Profile before optimizing\n"
-                    "- Use caching strategically\n"
-                    "- Consider async/await for I/O operations\n"
-                    "- Monitor key metrics\n"
-                )
+                if "performance" in context.identified_domains:
+                    response_parts.append(
+                        "\n### Performance Optimization\n"
+                        "- Profile before optimizing\n"
+                        "- Use caching strategically\n"
+                        "- Consider async/await for I/O operations\n"
+                        "- Monitor key metrics\n"
+                    )
 
-            # Key technical details
-            response_parts.append("\n### Key Technical Details\n")
-            for result in context.retrieved_results[:3]:
-                response_parts.append(f"- {result.chunk_text[:200]}...\n")
+                # Key technical details
+                response_parts.append("\n### Key Technical Details\n")
+                for result in context.retrieved_results[:3]:
+                    response_parts.append(f"- {result.chunk_text[:200]}...\n")
 
-            # Add references
-            response_parts.append("\n### References\n")
-            unique_sources = set(r.file_name for r in context.retrieved_results)
-            for source in unique_sources:
-                response_parts.append(f"- {source}\n")
+                # Add references
+                response_parts.append("\n### References\n")
+                unique_sources = set(r.file_name for r in context.retrieved_results)
+                for source in unique_sources:
+                    response_parts.append(f"- {source}\n")
 
-            response = "".join(response_parts)
-            confidence = min(1.0, 0.7 + (len(context.retrieved_results) * 0.1))
+                response = "".join(response_parts)
+                confidence = min(1.0, 0.7 + (len(context.retrieved_results) * 0.1))
 
         logger.info(f"Generated technical response: {len(response)} chars, confidence={confidence:.2f}")
         return response, confidence

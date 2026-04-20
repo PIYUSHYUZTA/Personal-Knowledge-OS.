@@ -5,10 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="PKOS - Personal Knowledge Operating System with semantic search and AI-powered insights" />
+    <meta name="theme-color" content="#09090B" />
     <title>PKOS - Personal Knowledge OS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      // Theme initialization — prevents flash of wrong theme
+      (function() {
+        const stored = localStorage.getItem('pkos-theme');
+        if (stored === 'light') return;
+        if (stored === 'dark' || !stored) {
+          document.documentElement.classList.add('dark');
+          return;
+        }
+        // system preference fallback
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

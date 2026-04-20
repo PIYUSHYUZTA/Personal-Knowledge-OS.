@@ -2,27 +2,27 @@ import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { knowledgeAPI } from '@/services/api'
 import { GraphEntity, GraphRelationship } from '@/types'
+import { Info, Maximize2, X } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
-// Heatmap helpers (Phase 3.5)
+// Heatmap helpers
 // ---------------------------------------------------------------------------
 
-/** Normalise a raw hit-count weight to [0, 1] using log-scaling (same curve as backend). */
 function normaliseWeight(rawWeight: number): number {
   return Math.min(1.0, Math.log1p(rawWeight) / Math.log1p(50))
 }
 
-/** Return emissive hex colour and intensity based on normalised intensity (0-1). */
-function glowConfig(intensity: number): { color: number; emissiveIntensity: number } {
+function glowConfig(intensity: number, isDark: boolean): { color: number; emissiveIntensity: number } {
+  const baseColor = isDark ? 0x818cf8 : 0x6366f1; // Indigo colors
+  const hotColor = isDark ? 0xffffff : 0x111111;
+  const coldColor = isDark ? 0x4f46e5 : 0xa5b4fc;
+
   if (intensity > 0.7) {
-    // Hot – bright white / neon (core expertise)
-    return { color: 0xffffff, emissiveIntensity: intensity }
+    return { color: hotColor, emissiveIntensity: intensity }
   } else if (intensity > 0.4) {
-    // Warm – cyan (moderately integrated concepts)
-    return { color: 0x00e5ff, emissiveIntensity: intensity * 0.85 }
+    return { color: baseColor, emissiveIntensity: intensity * 0.85 }
   } else {
-    // Cold – blue (new / rarely accessed knowledge)
-    return { color: 0x2979ff, emissiveIntensity: Math.max(0.05, intensity * 0.6) }
+    return { color: coldColor, emissiveIntensity: Math.max(0.05, intensity * 0.6) }
   }
 }
 
@@ -30,7 +30,7 @@ interface Node {
   id: string
   name: string
   type: string
-  weight: number           // normalised [0, 1]
+  weight: number
   position: THREE.Vector3
   mesh: THREE.Mesh
   velocity: THREE.Vector3
@@ -46,16 +46,6 @@ interface KnowledgeGraphVisualiserProps {
   token?: string
 }
 
-/**
- * Three.js 3D Knowledge Graph Visualiser
- *
- * Renders knowledge base as interactive 3D graph where:
- * - Nodes represent knowledge chunks/entities
- * - Edges represent relationships
- * - Physics simulation provides force-directed layout
- * - Click nodes to view metadata
- * - Drag to rotate, scroll to zoom
- */
 const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ token }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -73,35 +63,42 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const tokenRef = useRef<string | undefined>(token)
+  const [nodesCount, setNodesCount] = useState(0)
+  const [edgesCount, setEdgesCount] = useState(0)
 
   useEffect(() => {
     if (!containerRef.current) return
 
+    const isDark = document.documentElement.classList.contains('dark');
+    const bgColor = isDark ? 0x0A0A0A : 0xFAFAFA;
+    const edgeColor = isDark ? 0x262626 : 0xE5E5E5;
+
     // === THREE.js Setup ===
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x0f172a)
+    scene.background = new THREE.Color(bgColor)
+    scene.fog = new THREE.FogExp2(bgColor, 0.005)
     sceneRef.current = scene
 
     const camera = new THREE.PerspectiveCamera(
-      75,
+      60,
       containerRef.current.clientWidth / containerRef.current.clientHeight,
       0.1,
       10000
     )
-    camera.position.z = 50
+    camera.position.z = 80
     cameraRef.current = camera
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
     renderer.setPixelRatio(window.devicePixelRatio)
     containerRef.current.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6)
     directionalLight.position.set(50, 50, 50)
     scene.add(directionalLight)
 
@@ -111,87 +108,86 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
         const graphData = await knowledgeAPI.getGraph()
 
         if (!graphData.entities || graphData.entities.length === 0) {
-          // Create sample nodes for demo
-          createSampleGraph(scene)
+          createSampleGraph(scene, isDark, edgeColor)
           return
         }
 
-        // Create nodes from entities
         graphData.entities.forEach((entity: GraphEntity, index: number) => {
           const angle = (index / graphData.entities.length) * Math.PI * 2
-          const radius = 20
+          const radius = Math.random() * 40
 
           const node = createNode(
             entity.id,
             entity.entity_name,
             entity.entity_type,
             normaliseWeight(entity.weight ?? 0),
-            new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0),
-            scene
+            new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, (Math.random() - 0.5) * 20),
+            scene,
+            isDark
           )
 
           nodesRef.current.set(entity.id, node)
         })
 
-        // Create edges from relationships
         graphData.relationships?.forEach((rel: GraphRelationship) => {
           const sourceNode = nodesRef.current.get(rel.source_entity.id)
           const targetNode = nodesRef.current.get(rel.target_entity.id)
 
           if (sourceNode && targetNode) {
-            const edge = createEdge(sourceNode, targetNode, scene)
+            const edge = createEdge(sourceNode, targetNode, scene, edgeColor)
             edgesRef.current.push(edge)
           }
         })
+        
+        setNodesCount(nodesRef.current.size)
+        setEdgesCount(edgesRef.current.length)
       } catch (error) {
         console.error('Failed to load graph data:', error)
-        createSampleGraph(scene)
+        createSampleGraph(scene, isDark, edgeColor)
       }
     }
 
-    const createSampleGraph = (scene: THREE.Scene) => {
-      // Create sample nodes for demo
+    const createSampleGraph = (scene: THREE.Scene, isDark: boolean, edgeColor: number) => {
       const sampleNodes = [
-        { id: '1', name: 'Machine Learning', type: 'CONCEPT' },
-        { id: '2', name: 'Neural Networks', type: 'CONCEPT' },
-        { id: '3', name: 'Deep Learning', type: 'CONCEPT' },
-        { id: '4', name: 'Python', type: 'TOOL' },
-        { id: '5', name: 'PyTorch', type: 'TOOL' },
+        { id: '1', name: 'Knowledge Graph', type: 'CORE' },
+        { id: '2', name: 'Semantic Search', type: 'CONCEPT' },
+        { id: '3', name: 'Embeddings', type: 'CONCEPT' },
+        { id: '4', name: 'LLM Integration', type: 'TOOL' },
+        { id: '5', name: 'Vector Database', type: 'TOOL' },
+        { id: '6', name: 'RAG Architecture', type: 'PATTERN' },
       ]
 
       sampleNodes.forEach((data, index) => {
         const angle = (index / sampleNodes.length) * Math.PI * 2
-        const radius = 20
-        // Stagger sample weights so all three glow tiers are visible in demo mode
-        const demoWeight = normaliseWeight(index * 10)
+        const radius = 25
+        const demoWeight = normaliseWeight(index * 10 + 5)
 
         const node = createNode(
           data.id,
           data.name,
           data.type,
           demoWeight,
-          new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0),
-          scene
+          new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, (Math.random() - 0.5) * 10),
+          scene,
+          isDark
         )
 
         nodesRef.current.set(data.id, node)
       })
 
-      // Create sample edges
       ;[
-        ['1', '2'],
-        ['2', '3'],
-        ['1', '3'],
-        ['4', '5'],
+        ['1', '2'], ['2', '3'], ['1', '3'], ['1', '4'], ['4', '5'], ['1', '6'], ['6', '4']
       ].forEach(([src, tgt]) => {
         const sourceNode = nodesRef.current.get(src)
         const targetNode = nodesRef.current.get(tgt)
 
         if (sourceNode && targetNode) {
-          const edge = createEdge(sourceNode, targetNode, scene)
+          const edge = createEdge(sourceNode, targetNode, scene, edgeColor)
           edgesRef.current.push(edge)
         }
       })
+      setNodesCount(nodesRef.current.size)
+      setEdgesCount(edgesRef.current.length)
     }
 
     loadGraphData()
@@ -199,11 +195,10 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
     // === Force-Directed Physics ===
     const physicsStep = () => {
       const nodes = Array.from(nodesRef.current.values())
-      const friction = 0.99
-      const attraction = 0.01
-      const repulsion = 100
+      const friction = 0.95
+      const attraction = 0.02
+      const repulsion = 150
 
-      // Repulsion between nodes
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const nodeA = nodes[i]
@@ -211,41 +206,49 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
           const dx = nodeB.position.x - nodeA.position.x
           const dy = nodeB.position.y - nodeA.position.y
-          const distance = Math.sqrt(dx * dx + dy * dy) + 0.01
+          const dz = nodeB.position.z - nodeA.position.z
+          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.1
 
           const force = repulsion / (distance * distance)
 
           nodeA.velocity.x -= (force * dx) / distance
           nodeA.velocity.y -= (force * dy) / distance
+          nodeA.velocity.z -= (force * dz) / distance
 
           nodeB.velocity.x += (force * dx) / distance
           nodeB.velocity.y += (force * dy) / distance
+          nodeB.velocity.z += (force * dz) / distance
         }
       }
 
-      // Attraction along edges
       edgesRef.current.forEach((edge) => {
         const dx = edge.target.position.x - edge.source.position.x
         const dy = edge.target.position.y - edge.source.position.y
-        const distance = Math.sqrt(dx * dx + dy * dy)
+        const dz = edge.target.position.z - edge.source.position.z
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-        const force = attraction * distance
+        const force = attraction * (distance - 20) // target distance
 
         edge.source.velocity.x += (force * dx) / distance
         edge.source.velocity.y += (force * dy) / distance
+        edge.source.velocity.z += (force * dz) / distance
 
         edge.target.velocity.x -= (force * dx) / distance
         edge.target.velocity.y -= (force * dy) / distance
+        edge.target.velocity.z -= (force * dz) / distance
       })
 
-      // Apply velocity and friction
+      // Central gravity
       nodes.forEach((node) => {
-        node.position.add(node.velocity)
-        node.velocity.multiplyScalar(friction)
-        node.mesh.position.copy(node.position)
+         node.velocity.x += -node.position.x * 0.005
+         node.velocity.y += -node.position.y * 0.005
+         node.velocity.z += -node.position.z * 0.005
+
+         node.position.add(node.velocity)
+         node.velocity.multiplyScalar(friction)
+         node.mesh.position.copy(node.position)
       })
 
-      // Update edges
       edgesRef.current.forEach((edge) => {
         const geometry = edge.line.geometry as THREE.BufferGeometry
         const positions = new Float32Array([
@@ -258,7 +261,6 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
         ])
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-        geometry.attributes.position.needsUpdate = true
       })
     }
 
@@ -268,17 +270,16 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
     const onMouseMove = (event: MouseEvent) => {
       if (containerRef.current) {
-        mouse.x = (event.clientX / containerRef.current.clientWidth) * 2 - 1
-        mouse.y = -(event.clientY / containerRef.current.clientHeight) * 2 + 1
+        const rect = containerRef.current.getBoundingClientRect()
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
         if (controlsRef.current.isDragging) {
           const deltaX = event.clientX - controlsRef.current.previousMousePosition.x
           const deltaY = event.clientY - controlsRef.current.previousMousePosition.y
 
-          if (cameraRef.current) {
-            cameraRef.current.position.x -= (deltaX * 0.01 * cameraRef.current.position.z) / 10
-            cameraRef.current.position.y += (deltaY * 0.01 * cameraRef.current.position.z) / 10
-          }
+          scene.rotation.y += deltaX * 0.005
+          scene.rotation.x += deltaY * 0.005
         }
 
         controlsRef.current.previousMousePosition = { x: event.clientX, y: event.clientY }
@@ -287,10 +288,12 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
     const onMouseDown = () => {
       controlsRef.current.isDragging = true
+      if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
     }
 
     const onMouseUp = () => {
       controlsRef.current.isDragging = false
+      if (containerRef.current) containerRef.current.style.cursor = 'grab'
     }
 
     const onClick = (event: MouseEvent) => {
@@ -306,14 +309,14 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
         if (intersects.length > 0) {
           const clickedMesh = intersects[0].object
+          // Handle halo clicks as well
           const clickedNode = Array.from(nodesRef.current.values()).find(
-            (n) => n.mesh === clickedMesh
+            (n) => n.mesh === clickedMesh || n.mesh.children.includes(clickedMesh as any)
           )
 
           if (clickedNode) {
             setSelectedNode(clickedNode)
 
-            // Phase 3.5: record interaction hit so the backend heatmap stays live
             if (tokenRef.current) {
               fetch(
                 `/api/heatmap/record-interaction`,
@@ -328,7 +331,7 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
                     hit_weight: 0.5,
                   }),
                 }
-              ).catch(() => { /* fire-and-forget – don't break the 3D view */ })
+              ).catch(() => { /* fire-and-forget */ })
             }
           }
         }
@@ -337,25 +340,42 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
-
       if (cameraRef.current) {
         cameraRef.current.position.z += event.deltaY * 0.05
-
-        cameraRef.current.position.z = Math.max(10, Math.min(500, cameraRef.current.position.z))
+        cameraRef.current.position.z = Math.max(20, Math.min(200, cameraRef.current.position.z))
       }
     }
 
-    renderer.domElement.addEventListener('mousemove', onMouseMove)
-    renderer.domElement.addEventListener('mousedown', onMouseDown)
-    renderer.domElement.addEventListener('mouseup', onMouseUp)
-    renderer.domElement.addEventListener('click', onClick)
-    renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
+    if (containerRef.current) {
+      containerRef.current.style.cursor = 'grab'
+      containerRef.current.addEventListener('mousemove', onMouseMove)
+      containerRef.current.addEventListener('mousedown', onMouseDown)
+      containerRef.current.addEventListener('mouseup', onMouseUp)
+      containerRef.current.addEventListener('mouseleave', onMouseUp)
+      containerRef.current.addEventListener('click', onClick)
+      containerRef.current.addEventListener('wheel', onWheel, { passive: false })
+      
+      const resizeObserver = new ResizeObserver(() => {
+        if (!containerRef.current || !rendererRef.current || !cameraRef.current) return
+        const width = containerRef.current.clientWidth
+        const height = containerRef.current.clientHeight
+        rendererRef.current.setSize(width, height)
+        cameraRef.current.aspect = width / height
+        cameraRef.current.updateProjectionMatrix()
+      })
+      resizeObserver.observe(containerRef.current)
+    }
 
     // === Animation Loop ===
+    let animationFrameId: number
     const animate = () => {
-      requestAnimationFrame(animate)
-
+      animationFrameId = requestAnimationFrame(animate)
       physicsStep()
+      
+      // Auto-rotation slightly
+      if (!controlsRef.current.isDragging && sceneRef.current) {
+         sceneRef.current.rotation.y += 0.001
+      }
 
       if (sceneRef.current && rendererRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current)
@@ -365,15 +385,18 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
     animate()
 
     // Cleanup
+    const currentContainer = containerRef.current
     return () => {
-      renderer.domElement.removeEventListener('mousemove', onMouseMove)
-      renderer.domElement.removeEventListener('mousedown', onMouseDown)
-      renderer.domElement.removeEventListener('mouseup', onMouseUp)
-      renderer.domElement.removeEventListener('click', onClick)
-      renderer.domElement.removeEventListener('wheel', onWheel)
-
+      cancelAnimationFrame(animationFrameId)
+      if (currentContainer) {
+        currentContainer.removeEventListener('mousemove', onMouseMove)
+        currentContainer.removeEventListener('mousedown', onMouseDown)
+        currentContainer.removeEventListener('mouseup', onMouseUp)
+        currentContainer.removeEventListener('mouseleave', onMouseUp)
+        currentContainer.removeEventListener('click', onClick)
+        currentContainer.removeEventListener('wheel', onWheel)
+      }
       renderer.dispose()
-      containerRef.current?.removeChild(renderer.domElement)
     }
   }, [])
 
@@ -381,59 +404,62 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
     id: string,
     name: string,
     type: string,
-    weight: number,          // normalised [0, 1]
+    weight: number,
     position: THREE.Vector3,
-    scene: THREE.Scene
+    scene: THREE.Scene,
+    isDark: boolean
   ): Node => {
-    // Node size grows slightly with expertise
-    const baseRadius = 2
-    const radius = baseRadius + weight * 1.5
-    const geometry = new THREE.SphereGeometry(radius, 32, 32)
+    const baseRadius = 1.5
+    const radius = baseRadius + weight * 2
+    const geometry = new THREE.IcosahedronGeometry(radius, 2)
 
-    // Phase 3.5: weight overrides the flat type-colour with a glow gradient
-    const { color: glowColor, emissiveIntensity } = glowConfig(weight)
+    const { color: glowColor, emissiveIntensity } = glowConfig(weight, isDark)
 
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshPhysicalMaterial({
       color: glowColor,
       emissive: new THREE.Color(glowColor),
-      emissiveIntensity,
-      metalness: 0.2,
-      roughness: 0.4,
+      emissiveIntensity: emissiveIntensity * 0.5,
+      metalness: 0.1,
+      roughness: 0.2,
+      transmission: 0.5,
+      thickness: 1.0,
+      clearcoat: 1.0,
     })
+    
     const mesh = new THREE.Mesh(geometry, material)
     mesh.position.copy(position)
     scene.add(mesh)
 
-    // Glow halo: semi-transparent shell for high-weight nodes
-    if (weight > 0.4) {
-      const haloGeom = new THREE.SphereGeometry(radius * 1.45, 16, 16)
+    // Optional glow halo
+    if (weight > 0.3) {
+      const haloGeom = new THREE.IcosahedronGeometry(radius * 1.5, 1)
       const haloMat = new THREE.MeshBasicMaterial({
         color: glowColor,
         transparent: true,
-        opacity: 0.12 + weight * 0.18,
-        side: THREE.BackSide,
+        opacity: 0.1 + weight * 0.1,
+        wireframe: true,
       })
       const halo = new THREE.Mesh(haloGeom, haloMat)
       mesh.add(halo)
+      
+      // Rotate halo slowly
+      halo.userData = { isHalo: true }
     }
 
     return { id, name, type, weight, position, mesh, velocity: new THREE.Vector3(0, 0, 0) }
   }
 
-  const createEdge = (source: Node, target: Node, scene: THREE.Scene): Edge => {
+  const createEdge = (source: Node, target: Node, scene: THREE.Scene, edgeColor: number): Edge => {
     const geometry = new THREE.BufferGeometry()
-    const positions = new Float32Array([
-      source.position.x,
-      source.position.y,
-      source.position.z,
-      target.position.x,
-      target.position.y,
-      target.position.z,
-    ])
-
+    const positions = new Float32Array(6)
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
-    const material = new THREE.LineBasicMaterial({ color: 0x94a3b8, linewidth: 1 })
+    const material = new THREE.LineBasicMaterial({ 
+      color: edgeColor, 
+      linewidth: 1,
+      transparent: true,
+      opacity: 0.3
+    })
     const line = new THREE.Line(geometry, material)
 
     scene.add(line)
@@ -442,28 +468,59 @@ const KnowledgeGraphVisualiser: React.FC<KnowledgeGraphVisualiserProps> = ({ tok
   }
 
   return (
-    <div className="w-full h-full relative">
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="w-full h-full relative group">
+      <div ref={containerRef} className="w-full h-full absolute inset-0 outline-none" tabIndex={0} />
 
+      {/* Floating UI Elements */}
+      <div className="absolute top-4 left-4 flex gap-2">
+        <div className="glass px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-medium text-text-muted shadow-sm">
+           <Info size={14} />
+           Interactive Knowledge Space
+        </div>
+      </div>
+
+      <div className="absolute bottom-4 left-4 glass px-4 py-2.5 rounded-md shadow-sm font-mono text-[10px] text-text-muted uppercase tracking-wider flex items-center gap-4">
+        <span>Nodes: <span className="text-secondary font-bold">{nodesCount}</span></span>
+        <span>Edges: <span className="text-secondary font-bold">{edgesCount}</span></span>
+        <span className="opacity-50 ml-2 hidden sm:inline">Left Click + Drag: Rotate • Scroll: Zoom</span>
+      </div>
+
+      <button className="absolute bottom-4 right-4 p-2.5 glass rounded-md text-text-muted hover:text-primary transition-colors focus-ring hidden md:block">
+        <Maximize2 size={16} />
+      </button>
+
+      {/* Node Context Menu */}
       {selectedNode && (
-        <div className="absolute top-4 right-4 bg-slate-800 text-white p-4 rounded-lg shadow-lg max-w-xs">
-          <h3 className="font-bold text-lg mb-2">{selectedNode.name}</h3>
-          <p className="text-sm text-slate-300">Type: {selectedNode.type}</p>
-          <p className="text-xs text-slate-400 mt-2">ID: {selectedNode.id}</p>
+        <div className="absolute top-4 right-4 glass p-5 rounded-xl shadow-lg w-72 animate-in slide-in-from-right-4 fade-in duration-200">
+          <div className="flex justify-between items-start mb-4">
+             <div>
+                <h3 className="font-semibold text-primary leading-tight text-base">{selectedNode.name}</h3>
+                <p className="text-[11px] uppercase tracking-wider text-text-muted font-medium mt-1">Type: {selectedNode.type}</p>
+             </div>
+             <button 
+               onClick={() => setSelectedNode(null)}
+               className="p-1 rounded bg-black/5 dark:bg-white/5 text-text-muted hover:text-primary transition-colors"
+             >
+                <X size={14} />
+             </button>
+          </div>
 
-          <button
-            onClick={() => setSelectedNode(null)}
-            className="mt-4 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
-          >
-            Close
+          <div className="space-y-3 pt-3 border-t border-border/50">
+             <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Entity Score</span>
+                <span className="font-mono text-secondary">{(selectedNode.weight * 100).toFixed(0)}</span>
+             </div>
+             <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Graph UID</span>
+                <span className="font-mono text-text-muted opacity-50 truncate max-w-[120px]" title={selectedNode.id}>{selectedNode.id}</span>
+             </div>
+          </div>
+          
+          <button className="w-full mt-5 py-2 rounded-md bg-secondary text-surface text-xs font-semibold hover:bg-secondary/90 transition-colors shadow-sm">
+             Explore Connections
           </button>
         </div>
       )}
-
-      <div className="absolute bottom-4 left-4 text-slate-400 text-xs bg-slate-900 bg-opacity-75 p-3 rounded">
-        <p>🖱️ Drag to rotate | 🔍 Scroll to zoom | 🖱️ Click nodes for details</p>
-        <p className="mt-1">Nodes: {nodesRef.current.size} | Edges: {edgesRef.current.length}</p>
-      </div>
     </div>
   )
 }

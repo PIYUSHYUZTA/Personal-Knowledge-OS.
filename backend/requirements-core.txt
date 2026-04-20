@@ -1,0 +1,40 @@
+# PKOS Core Dependencies (minimal for local development)
+# Install with: pip install -r requirements-core.txt
+
+# FastAPI & Web Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# Database & ORM (SQLite for local dev, no PostgreSQL needed)
+sqlalchemy
+alembic
+
+# Security & Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+cryptography
+
+# Task Scheduling
+APScheduler
+
+# HTTP Client
+httpx
+
+# Process monitoring
+psutil
+
+# Logging & Monitoring
+python-json-logger
+structlog
+
+# Development
+python-dotenv
+email-validator
+
+# Testing
+pytest
+pytest-asyncio

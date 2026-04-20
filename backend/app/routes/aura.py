@@ -17,41 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/aura", tags=["Technical Reasoning"])
 
-
-def get_current_user(token: str = Query(None), db: Session = Depends(get_db)) -> User:
-    """Extract user from JWT token."""
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token required",
-        )
-
-    from app.core.security import verify_token
-
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    from uuid import UUID
-    user = db.query(User).filter(User.id == UUID(user_id)).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    return user
+from app.routes.auth import get_current_user
 
 
 @router.post(
@@ -61,7 +27,7 @@ def get_current_user(token: str = Query(None), db: Session = Depends(get_db)) ->
 )
 def technical_query(
     request: AuraQuery,
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -78,8 +44,6 @@ def technical_query(
     - Confidence score
     """
     try:
-        user = get_current_user(token, db)
-
         logger.info(f"Technical query from user {user.id}: {request.message}")
 
         # Process query through technical reasoning engine
@@ -101,6 +65,8 @@ def technical_query(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error in technical query: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -115,7 +81,7 @@ def technical_query(
 )
 def get_history(
     limit: int = Query(10, ge=1, le=100),
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -123,13 +89,11 @@ def get_history(
 
     **Query Parameters:**
     - limit: Maximum number of conversations (1-100)
-    - token: JWT access token
 
     **Returns:**
     - List of recent interactions
     """
     try:
-        user = get_current_user(token, db)
 
         from app.models import ConversationHistory
 
@@ -172,14 +136,11 @@ def get_history(
     description="Get reasoning engine performance stats",
 )
 def get_stats(
-    token: str = Query(None),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Get technical reasoning statistics for current user.
-
-    **Query Parameters:**
-    - token: JWT access token
 
     **Returns:**
     - Query count
@@ -187,7 +148,6 @@ def get_stats(
     - Top domains
     """
     try:
-        user = get_current_user(token, db)
 
         from app.models import ConversationHistory
         import statistics
@@ -223,4 +183,50 @@ def get_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching statistics",
+        )
+
+
+@router.get(
+    "/state",
+    summary="Get AURA state",
+    description="Get current AURA persona and state",
+)
+def get_aura_state(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get current AURA state for current user.
+
+    **Returns:**
+    - AURA state (persona, context window, etc.)
+    """
+    try:
+        
+        from app.models import AuraState
+        
+        aura_state = db.query(AuraState).filter(AuraState.user_id == user.id).first()
+        
+        if not aura_state:
+            # Create default state if doesn't exist
+            aura_state = AuraState(user_id=user.id)
+            db.add(aura_state)
+            db.commit()
+            db.refresh(aura_state)
+        
+        return {
+            "id": str(aura_state.id),
+            "user_id": str(aura_state.user_id),
+            "current_persona": aura_state.current_persona.value,
+            "context_window": aura_state.context_window,
+            "updated_at": aura_state.updated_at.isoformat(),
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching AURA state: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching AURA state",
         )

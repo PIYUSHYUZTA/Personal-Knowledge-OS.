@@ -4,14 +4,14 @@ Provides endpoints for researching URLs and retrieving results.
 """
 
 import logging
-from uuid import UUID
 import asyncio
+from uuid import UUID
 
 from fastapi import APIRouter, Query, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
-from app.core.security import verify_token
+from app.core.security import verify_token, extract_user_id_from_token
 from app.models import WebContent, User
 from app.services.web_researcher import WebResearcherService
 from app.services.web_ingestion_bridge import WebIngestionBridge
@@ -37,7 +37,11 @@ async def research_from_url(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
     user = db_session.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -126,7 +130,10 @@ def get_research_result(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         web_content = db_session.query(WebContent).filter(
@@ -169,7 +176,10 @@ def get_research_history(
     if not payload:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     try:
         web_contents = db_session.query(WebContent).filter(
@@ -239,7 +249,11 @@ async def websocket_research_stream(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    user_id = UUID(payload.get("sub"))
+    try:
+        user_id = extract_user_id_from_token(payload)
+    except ValueError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
     await websocket.accept()
     logger.info(f"WebSocket research connection established for user {user_id}")
