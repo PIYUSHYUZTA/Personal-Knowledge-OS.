@@ -14,6 +14,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 from sqlalchemy.orm import Session
 import logging
+import os
 
 from app.models import ConversationHistory, User
 from app.schemas import SearchResult
@@ -148,6 +149,7 @@ class TechnicalReasoningEngine:
         context: TechnicalReasoningContext,
         parent_context: Optional[str] = None,
     ) -> Tuple[str, float]:
+        logger.info("Generating technical response via LLM")
         """
         Generate a technically rigorous response with parent document context.
 
@@ -162,75 +164,143 @@ class TechnicalReasoningEngine:
         response_parts = []
 
         # Attempt to use LLMFactory for real response
-        prompt = f"Query: {query}\n\nContext:\n{parent_context or context.retrieved_results}"
+        # Structured prompt for architectural rigor
+        system_prompt = (
+            "You are AURA (Architectural Unified Reasoning Assistant), a high-end technical expert. "
+            "Provide precise, rigorous analysis based ONLY on the provided context. "
+            "If the answer is not in the context, use your internal knowledge to provide a general "
+            "architectural best practice but clearly state it is not in the user's knowledge base. "
+            "Focus on: Scalability, Security, Performance, and Clean Architecture."
+        )
+
+        prompt = (
+            f"USER QUERY: {query}\n\n"
+            f"TECHNICAL CONTEXT:\n{parent_context or context.retrieved_results}\n\n"
+            "INSTRUCTIONS:\n"
+            "1. Analyze the query against the provided context.\n"
+            "2. Identify key architectural concerns.\n"
+            "3. Propose an optimal technical approach.\n"
+            "4. Highlight any security or performance tradeoffs.\n"
+            "5. If context is missing, provide industry-standard best practices.\n"
+            "\nRESPONSE STRUCTURE:\n"
+            "## Technical Analysis\n[Your analysis]\n"
+            "### Architectural Approach\n[Details]\n"
+            "### Performance & Security\n[Tradeoffs]\n"
+        )
+
         try:
+            if os.getenv("AURA_ENABLE_LLM_RESPONSES", "false").lower() != "true":
+                return TechnicalReasoningEngine._generate_contextual_response(
+                    context,
+                    parent_context,
+                )
+
+            # Inform LLM if grounding context is missing
+            current_system_prompt = system_prompt
+            if not context.retrieved_results:
+                logger.info("No knowledge base context found; generating general technical response via LLM")
+                current_system_prompt += " NOTE: No specific user documents were found. Provide a general technical answer but acknowledge that it is not grounded in the user's specific knowledge base."
+
             provider = LLMFactory.get_provider()
+            try:
+                asyncio.get_running_loop()
+                raise RuntimeError("Synchronous technical response called from an active event loop")
+            except RuntimeError as loop_error:
+                if "active event loop" in str(loop_error):
+                    raise
+
             llm_response = asyncio.run(provider.generate(
                 prompt=prompt,
-                system_prompt="You are AURA, a highly intelligent personal knowledge OS assistant."
+                system_prompt=current_system_prompt
             ))
             response = llm_response.get("content", str(llm_response))
-            confidence = 0.95
+            confidence = 0.95 if context.retrieved_results else 0.7
+            return response, confidence
+
         except Exception as e:
-            logger.warning(f"Using fallback response due to LLM error: {e}")
+            import traceback
+            logger.error(f"TECHNICAL REASONING ERROR: {e}")
+            logger.error(traceback.format_exc())
+            logger.warning(f"Using manual fallback response due to error: {e}")
+            
+            # Static fallback if LLM fails
             if not context.retrieved_results:
-                # No knowledge base context available
-                response = TechnicalReasoningEngine._generate_general_response(query)
-                confidence = 0.5
-            else:
-                # Build knowledge-based response
-                response_parts.append("## Technical Analysis\n")
+                return TechnicalReasoningEngine._generate_general_response(query), 0.5
 
-                # Add explicit answer
-                response_parts.append(f"**Query**: {query}\n")
+            # Manual construction if LLM fails but we HAVE context
+            response_parts = ["## Technical Analysis (Manual Fallback)\n"]
+            response_parts.append(f"**Query**: {query}\n")
 
-                if parent_context:
-                    response_parts.append("### Relevant Context from Knowledge Base\n")
-                    response_parts.append(f"```\n{parent_context[:1000]}\n```\n")
+            if parent_context:
+                response_parts.append("### Relevant Context from Knowledge Base\n")
+                response_parts.append(f"```\n{parent_context[:1000]}\n```\n")
 
-                # Domain-specific analysis
-                if "database" in context.identified_domains:
-                    response_parts.append(
-                        "\n### Database Considerations\n"
-                        "- Use appropriate indexes for query optimization\n"
-                        "- Consider normalized vs denormalized schemas\n"
-                        "- Implement query caching where beneficial\n"
-                    )
+            # Domain-specific analysis
+            if "database" in context.identified_domains:
+                response_parts.append(
+                    "\n### Database Considerations\n"
+                    "- Use appropriate indexes for query optimization\n"
+                    "- Consider normalized vs denormalized schemas\n"
+                )
 
-                if "security" in context.identified_domains:
-                    response_parts.append(
-                        "\n### Security Recommendations\n"
-                        "- Validate and sanitize all inputs\n"
-                        "- Use parameterized queries to prevent SQL injection\n"
-                        "- Implement proper authentication and authorization\n"
-                        "- Apply principle of least privilege\n"
-                    )
+            return "\n".join(response_parts), 0.6
 
-                if "performance" in context.identified_domains:
-                    response_parts.append(
-                        "\n### Performance Optimization\n"
-                        "- Profile before optimizing\n"
-                        "- Use caching strategically\n"
-                        "- Consider async/await for I/O operations\n"
-                        "- Monitor key metrics\n"
-                    )
+        except Exception as e:
+            import traceback
+            logger.error(f"TECHNICAL REASONING ERROR: {e}")
+            logger.error(traceback.format_exc())
+            return TechnicalReasoningEngine._generate_general_response(query), 0.5
 
-                # Key technical details
-                response_parts.append("\n### Key Technical Details\n")
-                for result in context.retrieved_results[:3]:
-                    response_parts.append(f"- {result.chunk_text[:200]}...\n")
+    @staticmethod
+    def _generate_contextual_response(
+        context: TechnicalReasoningContext,
+        parent_context: Optional[str] = None,
+    ) -> Tuple[str, float]:
+        """Generate a deterministic technical answer without external LLM latency."""
+        query = context.query
+        response_parts = ["## Technical Analysis\n", f"**Query**: {query}\n"]
 
-                # Add references
-                response_parts.append("\n### References\n")
-                unique_sources = set(r.file_name for r in context.retrieved_results)
-                for source in unique_sources:
-                    response_parts.append(f"- {source}\n")
+        if parent_context:
+            response_parts.append("### Relevant Knowledge Base Context\n")
+            response_parts.append(parent_context[:1500])
+            response_parts.append("\n")
+        elif context.retrieved_results:
+            response_parts.append("### Relevant Knowledge Base Context\n")
+            for result in context.retrieved_results[:3]:
+                response_parts.append(f"- {result.file_name}: {result.chunk_text}\n")
+        else:
+            response_parts.append(
+                "This answer is based on general engineering practice because no matching knowledge-base context was found.\n"
+            )
 
-                response = "".join(response_parts)
-                confidence = min(1.0, 0.7 + (len(context.retrieved_results) * 0.1))
+        response_parts.append("### Architectural Approach\n")
+        if "security" in context.identified_domains:
+            response_parts.append(
+                "- Validate and parameterize all inputs; avoid string-built queries.\n"
+                "- Use least-privilege credentials and keep sensitive details out of responses and logs.\n"
+            )
+        if "database" in context.identified_domains:
+            response_parts.append(
+                "- Add indexes for frequently filtered or joined columns.\n"
+                "- Check query plans before changing schema or denormalizing data.\n"
+            )
+        if "performance" in context.identified_domains:
+            response_parts.append(
+                "- Measure latency first, cache stable reads, and remove expensive work from request paths.\n"
+                "- Keep response payloads compact and paginate large datasets.\n"
+            )
+        if not context.identified_domains:
+            response_parts.append(
+                "- Break the problem into validation, data access, business logic, and operational concerns.\n"
+            )
 
-        logger.info(f"Generated technical response: {len(response)} chars, confidence={confidence:.2f}")
-        return response, confidence
+        response_parts.append("### Performance & Security\n")
+        response_parts.append(
+            "Prefer explicit validation, bounded resource usage, consistent error handling, and tests around failure paths.\n"
+        )
+
+        confidence = 0.85 if context.retrieved_results else 0.65
+        return "\n".join(response_parts), confidence
 
     @staticmethod
     def _generate_general_response(query: str) -> str:
@@ -331,9 +401,14 @@ Your knowledge base doesn't contain directly relevant information for this query
         """
         try:
             # Step 1: Semantic search
-            retrieved_results = KnowledgeService.semantic_search(
-                db, user_id, query, top_k=5, min_similarity=0.3
-            )
+            from app.models import KnowledgeSource
+
+            has_sources = db.query(KnowledgeSource.id).filter(KnowledgeSource.user_id == user_id).first()
+            retrieved_results = []
+            if has_sources:
+                retrieved_results = KnowledgeService.semantic_search(
+                    db, user_id, query, top_k=5, min_similarity=0.3
+                )
 
             # Step 2: Analyze query and retrieve context
             context = TechnicalReasoningEngine.analyze_query(

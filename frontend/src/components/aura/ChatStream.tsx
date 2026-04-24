@@ -298,7 +298,7 @@ const ChatStream: React.FC<ChatStreamProps> = ({ token }) => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Header */}
       <div className="bg-surface border-b border-border px-5 py-3.5">
         <div className="flex items-center justify-between">

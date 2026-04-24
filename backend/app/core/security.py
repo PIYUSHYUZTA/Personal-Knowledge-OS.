@@ -56,6 +56,7 @@ def create_access_token(
         )
 
     to_encode.update({"exp": expire})
+    to_encode.setdefault("jti", secrets.token_urlsafe(16))
 
     encoded_jwt = jwt.encode(
         to_encode,
@@ -70,6 +71,7 @@ def create_refresh_token(data: dict) -> Tuple[str, datetime]:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.setdefault("jti", secrets.token_urlsafe(16))
 
     encoded_jwt = jwt.encode(
         to_encode,

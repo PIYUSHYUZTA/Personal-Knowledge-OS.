@@ -1,9 +1,8 @@
-import React, { useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { Loader2, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import AuthBackground from '@/components/auth/AuthBackground'
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0
@@ -14,15 +13,16 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   if (/[^A-Za-z0-9]/.test(password)) score++
 
   if (score <= 1) return { score, label: 'Weak', color: 'bg-error' }
-  if (score <= 2) return { score, label: 'Fair', color: 'bg-warning' }
-  if (score <= 3) return { score, label: 'Good', color: 'bg-info' }
-  return { score, label: 'Strong', color: 'bg-success' }
+  if (score <= 2) return { score, label: 'Fair', color: 'bg-orange-500' }
+  if (score <= 3) return { score, label: 'Good', color: 'bg-secondary' }
+  return { score, label: 'Strong', color: 'bg-emerald-500' }
 }
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { register, isLoading, error } = useAuth()
-  const [formData, setFormData] = React.useState({
+  
+  const [formData, setFormData] = useState({
     email: '',
     username: '',
     password: '',
@@ -42,162 +42,127 @@ export default function RegisterPage() {
     e.preventDefault()
     try {
       await register(formData.email, formData.username, formData.password, formData.full_name)
-      navigate('/')
+      // Redirect to login to verify
+      navigate('/login')
     } catch {
       // Error is handled by context
     }
   }
 
   return (
-    <div className="flex relative min-h-screen items-center justify-center bg-background overflow-hidden selection:bg-secondary/20 selection:text-secondary py-12">
-      {/* Background orbs */}
-      <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-secondary/8 blur-[120px] rounded-full pointer-events-none animate-float" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-accent/8 blur-[120px] rounded-full pointer-events-none animate-float" style={{ animationDelay: '3s' }} />
+    <div className="bg-transparent text-on-surface h-screen w-screen overflow-hidden flex items-center justify-center relative font-body-md text-body-md selection:bg-primary-container/30 selection:text-primary">
+      
+      {/* Deep Space Background */}
+      <AuthBackground />
 
-      <motion.div
+      <motion.main 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-        className="w-full max-w-[420px] px-4 relative z-10"
+        transition={{ duration: 0.5 }}
+        className="relative z-10 w-full max-w-[440px] mx-6"
       >
-        <div className="glass-panel rounded-2xl p-10 flex flex-col items-center border border-border/60 shadow-lg relative overflow-hidden backdrop-blur-2xl">
-          {/* Gradient strip */}
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-secondary/60 to-accent/60" />
+        <div className="bg-surface/40 backdrop-blur-[40px] border border-white/10 rounded-2xl shadow-[0_32px_64px_rgba(0,0,0,0.5)] p-8 relative overflow-hidden">
+          <header className="mb-6 text-center">
+            <div className="flex justify-center mb-4">
+              <span className="material-symbols-outlined text-secondary text-[32px] drop-shadow-[0_0_8px_rgba(0,227,253,0.3)]">person_add</span>
+            </div>
+            <h1 className="font-space-grotesk text-2xl font-bold text-on-surface tracking-tight uppercase">Identity_Registration</h1>
+            <p className="font-inter text-[9px] uppercase font-bold text-secondary/80 mt-1 tracking-[0.2em]">Enrolling New Operator</p>
+          </header>
 
-          <div className="w-12 h-12 rounded-xl bg-primary text-surface flex items-center justify-center font-bold text-lg shadow-sm mb-6 relative group overflow-hidden">
-            <span className="relative z-10">PK</span>
-            <div className="absolute inset-0 bg-secondary/80 translate-y-full group-hover:translate-y-0 transition-transform duration-200" />
-          </div>
+          {error && (
+            <div className="mb-6 p-3 rounded-lg bg-error/10 border border-error/20 text-error text-[11px] font-bold text-center uppercase tracking-wider">
+              {error}
+            </div>
+          )}
 
-          <h1 className="text-2xl font-semibold text-primary mb-1.5 text-center tracking-tight">Create your account</h1>
-          <p className="text-sm text-text-muted mb-8 text-center px-4">Join PKOS and start building your brain.</p>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4">
+               <div className="flex flex-col gap-1.5">
+                  <label className="font-inter text-[9px] font-bold text-outline uppercase tracking-wider">Full Name</label>
+                  <input 
+                    className="w-full bg-white/5 border-b border-white/10 text-on-surface placeholder:text-outline/40 font-inter text-sm p-3 rounded-t focus:outline-none focus:border-secondary transition-all" 
+                    name="full_name"
+                    placeholder="John Doe" 
+                    type="text"
+                    value={formData.full_name}
+                    onChange={handleChange}
+                  />
+               </div>
+               <div className="flex flex-col gap-1.5">
+                  <label className="font-inter text-[9px] font-bold text-outline uppercase tracking-wider">Username</label>
+                  <input 
+                    className="w-full bg-white/5 border-b border-white/10 text-on-surface placeholder:text-outline/40 font-inter text-sm p-3 rounded-t focus:outline-none focus:border-secondary transition-all" 
+                    name="username"
+                    placeholder="johndoe" 
+                    type="text"
+                    value={formData.username}
+                    onChange={handleChange}
+                    required
+                  />
+               </div>
+            </div>
 
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="w-full overflow-hidden"
-              >
-                <div className="bg-error/10 border border-error/20 text-error text-[13px] font-medium p-3 rounded-lg mb-6 flex items-start gap-2">
-                  <span className="shrink-0 mt-0.5">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <form onSubmit={handleSubmit} className="space-y-4 w-full">
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-semibold text-text-muted uppercase tracking-wider">Email Address</label>
-              <input
-                id="register-email"
-                type="email"
+            <div className="flex flex-col gap-1.5">
+              <label className="font-inter text-[9px] font-bold text-outline uppercase tracking-wider">Neural Designation (Email)</label>
+              <input 
+                className="w-full bg-white/5 border-b border-white/10 text-on-surface placeholder:text-outline/40 font-inter text-sm p-3 rounded-t focus:outline-none focus:border-secondary transition-all" 
                 name="email"
+                placeholder="operator@nexus.local" 
+                type="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-border/80 rounded-xl bg-black/5 dark:bg-white/5 text-primary placeholder:text-text-muted/50 focus:ring-2 focus:ring-secondary/20 focus:border-secondary focus:bg-background transition-all outline-none shadow-sm text-sm"
-                placeholder="you@example.com"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-semibold text-text-muted uppercase tracking-wider">Username</label>
-              <input
-                id="register-username"
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-border/80 rounded-xl bg-black/5 dark:bg-white/5 text-primary placeholder:text-text-muted/50 focus:ring-2 focus:ring-secondary/20 focus:border-secondary focus:bg-background transition-all outline-none shadow-sm text-sm font-mono"
-                placeholder="johndoe"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="flex items-center justify-between text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                <span>Full Name</span>
-                <span className="opacity-60 lowercase font-medium tracking-normal">Optional</span>
-              </label>
-              <input
-                id="register-fullname"
-                type="text"
-                name="full_name"
-                value={formData.full_name}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-border/80 rounded-xl bg-black/5 dark:bg-white/5 text-primary placeholder:text-text-muted/50 focus:ring-2 focus:ring-secondary/20 focus:border-secondary focus:bg-background transition-all outline-none shadow-sm text-sm"
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-semibold text-text-muted uppercase tracking-wider">Password</label>
-              <input
-                id="register-password"
-                type="password"
+            <div className="flex flex-col gap-1.5">
+              <label className="font-inter text-[9px] font-bold text-outline uppercase tracking-wider">Access Passphrase</label>
+              <input 
+                className="w-full bg-white/5 border-b border-white/10 text-on-surface placeholder:text-outline/40 font-inter text-sm p-3 rounded-t focus:outline-none focus:border-secondary transition-all" 
                 name="password"
+                placeholder="••••••••••••" 
+                type="password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-border/80 rounded-xl bg-black/5 dark:bg-white/5 text-primary placeholder:text-text-muted/50 focus:ring-2 focus:ring-secondary/20 focus:border-secondary focus:bg-background transition-all outline-none shadow-sm text-sm"
-                placeholder="••••••••"
                 required
               />
-              {/* Password strength indicator */}
               {formData.password.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="pt-2 space-y-1.5"
-                >
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div
-                        key={level}
-                        className={cn(
-                          'h-1 flex-1 rounded-full transition-colors duration-200',
-                          level <= passwordStrength.score ? passwordStrength.color : 'bg-border'
-                        )}
-                      />
-                    ))}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div 
+                      className={`h-full ${passwordStrength.color}`} 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                    />
                   </div>
-                  <p className="text-[10px] font-medium text-text-muted">
-                    Password strength: <span className="text-primary">{passwordStrength.label}</span>
-                  </p>
-                </motion.div>
+                  <span className="text-[8px] font-bold uppercase text-outline">{passwordStrength.label}</span>
+                </div>
               )}
             </div>
 
-            <button
-              id="register-submit"
+            <button 
+              disabled={isLoading || !formData.email || !formData.password}
+              className="mt-4 w-full bg-secondary/10 border border-secondary/50 hover:bg-secondary/20 text-secondary font-inter text-[10px] font-bold uppercase tracking-[0.2em] py-4 rounded-lg flex justify-center items-center gap-3 transition-all shadow-[0_0_15px_rgba(0,227,253,0.1)] hover:shadow-[0_0_25px_rgba(0,227,253,0.3)] disabled:opacity-50" 
               type="submit"
-              disabled={isLoading || !formData.email || !formData.username || !formData.password}
-              className="w-full mt-6 bg-secondary text-white font-medium py-3 rounded-xl transition-all shadow-sm shadow-secondary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary/90 active:scale-[0.98] group text-sm"
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 group-hover:opacity-100 transition-all" />
-                </>
-              )}
+              {isLoading ? "ENROLLING..." : "CREATE IDENTITY"}
             </button>
           </form>
 
-          <p className="text-center text-[13px] text-text-muted mt-8">
-            Already have an account?{' '}
-            <button
-              onClick={() => navigate('/login')}
-              className="text-secondary hover:text-secondary/80 font-semibold transition-colors cursor-pointer"
-            >
-              Log in
-            </button>
-          </p>
+          <footer className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-4">
+            <p className="font-inter text-[10px] text-outline uppercase tracking-widest">
+              Already Enrolled?
+              <button 
+                onClick={() => navigate('/login')}
+                className="ml-2 text-primary hover:underline font-bold"
+              >
+                ACCESS UPLINK
+              </button>
+            </p>
+          </footer>
         </div>
-      </motion.div>
+      </motion.main>
     </div>
   )
 }

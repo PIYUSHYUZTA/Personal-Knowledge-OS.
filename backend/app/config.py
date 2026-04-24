@@ -1,6 +1,10 @@
-from pydantic_settings import BaseSettings
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import os
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 class Settings(BaseSettings):
     """
@@ -156,8 +160,10 @@ class Settings(BaseSettings):
     GRAPH_MAX_VISIBLE_NODES: int = 500          # Max nodes rendered in 3D view
     GRAPH_WEBSOCKET_BATCH_SIZE: int = 10        # Batch N node updates before broadcasting
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR / ".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 settings = Settings()

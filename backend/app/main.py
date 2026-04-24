@@ -7,9 +7,15 @@ import os
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
 
-from fastapi import FastAPI
+import json
+import time
+
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 import logging
 
@@ -45,6 +51,51 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+class JSONEnvelopeMiddleware(BaseHTTPMiddleware):
+    """ASGI middleware that normalizes completed JSON HTTP responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith(("/api/docs", "/api/redoc", "/api/openapi.json")):
+            return await call_next(request)
+
+        response = await call_next(request)
+        if response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_304_NOT_MODIFIED):
+            return response
+
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+
+        headers = dict(response.headers)
+        headers.pop("content-length", None)
+
+        try:
+            payload = json.loads(body.decode() or "null")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return Response(
+                content=body,
+                status_code=response.status_code,
+                headers=headers,
+                media_type=response.media_type,
+            )
+
+        if isinstance(payload, dict) and "success" in payload:
+            normalized = payload
+        elif response.status_code < 400:
+            message_text = payload.get("message", "OK") if isinstance(payload, dict) else "OK"
+            normalized = {"success": True, "data": payload, "message": message_text}
+            if isinstance(payload, dict):
+                normalized.update(payload)
+        else:
+            normalized = payload
+
+        return JSONResponse(
+            content=normalized,
+            status_code=response.status_code,
+            headers=headers,
+        )
 
 # ============================================================================
 # LIFECYCLE EVENTS
@@ -153,6 +204,59 @@ def create_app() -> FastAPI:
     # MIDDLEWARE
     # ========================================================================
 
+    @app.middleware("http")
+    async def request_logging_middleware(request: Request, call_next):
+        """Log every HTTP request with method, path, status, and duration."""
+        started_at = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        logger.info(
+            "%s %s -> %s %.2fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        message = exc.detail if isinstance(exc.detail, str) else "Request failed"
+        if exc.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+            message = "Internal server error"
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "message": message,
+                "code": exc.status_code,
+            },
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "success": False,
+                "message": "Invalid request",
+                "code": status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "details": exc.errors(),
+            },
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.error("Unhandled error on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": "Internal server error",
+                "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
+        )
+
     # Security & Rate Limiting
     rate_limiter = RateLimiter(
         requests_per_minute=int(os.getenv("RATE_LIMIT_PER_MINUTE", "60")),
@@ -169,6 +273,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.add_middleware(JSONEnvelopeMiddleware)
     # GZIP compression
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 

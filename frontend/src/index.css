@@ -99,7 +99,8 @@
   }
 
   body {
-    @apply bg-background font-sans antialiased;
+    background-color: #0a0a0f;
+    @apply font-sans antialiased;
     color: rgb(var(--text-body));
     font-feature-settings: "rlig" 1, "calt" 1;
     transition: background-color 0.2s ease, color 0.2s ease;
@@ -171,6 +172,18 @@
 @keyframes count-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slow-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(2%, 1%) scale(1.02); }
+  66% { transform: translate(-1%, 2%) scale(0.98); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes digital-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.05); }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -289,8 +302,53 @@ body::before {
     animation: pulse-glow 2s ease-in-out infinite;
   }
 
+  .animate-slow-drift {
+    animation: slow-drift 20s ease-in-out infinite;
+  }
+
+  .animate-digital-pulse {
+    animation: digital-pulse 4s ease-in-out infinite;
+  }
+
   /* ── Gradient Text ─────────────────────────────────── */
   .gradient-text {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-secondary via-accent to-secondary;
   }
+}
+
+/* ── Dashboard v2 Styles ─────────────────────────── */
+.dashboard-v2-glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.glow-active {
+  box-shadow: 0 0 15px rgba(124, 77, 255, 0.5);
+}
+.bg-space {
+  background: radial-gradient(circle at 50% 50%, #1a1525 0%, #0a0810 100%);
+}
+.node-glow {
+  filter: drop-shadow(0 0 8px rgba(124, 77, 255, 0.8));
+}
+
+/* ── Knowledge Graph Cinematic Styles ───────────────── */
+.deep-space-bg {
+  background: radial-gradient(circle at 50% 50%, #1a1525 0%, #0f0d16 100%);
+}
+.node-glow-primary {
+  box-shadow: 0 0 20px rgba(124, 77, 255, 0.6), inset 0 0 10px rgba(255,255,255,0.5);
+}
+.node-glow-secondary {
+  box-shadow: 0 0 15px rgba(0, 227, 253, 0.5), inset 0 0 8px rgba(255,255,255,0.4);
+}
+.node-glow-tertiary {
+  box-shadow: 0 0 10px rgba(255, 182, 136, 0.4), inset 0 0 6px rgba(255,255,255,0.3);
+}
+.edge-primary {
+  background: linear-gradient(90deg, rgba(124,77,255,0.1) 0%, rgba(124,77,255,0.8) 50%, rgba(124,77,255,0.1) 100%);
+}
+.edge-secondary {
+  background: linear-gradient(90deg, rgba(0,227,253,0.1) 0%, rgba(0,227,253,0.6) 50%, rgba(0,227,253,0.1) 100%);
 }

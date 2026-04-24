@@ -135,6 +135,24 @@ class AuthService:
 
         try:
             user = db.query(User).filter(User.id == user_id).first()
+            if not user or not user.is_active:
+                return None
+
+            session = (
+                db.query(SessionModel)
+                .filter(SessionModel.token == token, SessionModel.user_id == user_id)
+                .first()
+            )
+            if not session or session.revoked:
+                return None
+
+            now = datetime.now(timezone.utc)
+            expires_at = session.expires_at
+            if expires_at.tzinfo is None:
+                now = datetime.utcnow()
+            if expires_at <= now:
+                return None
+
             return user if user and user.is_active else None
         except Exception as e:
             logger.error(f"Error verifying session: {e}")
@@ -164,6 +182,14 @@ class AuthService:
         access_token, access_expires = create_access_token(
             {"sub": str(user.id), "type": "access"}
         )
+
+        session = SessionModel(
+            user_id=user.id,
+            token=access_token,
+            expires_at=access_expires,
+        )
+        db.add(session)
+        db.commit()
 
         return TokenResponse(
             access_token=access_token,

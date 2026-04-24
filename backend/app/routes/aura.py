@@ -9,16 +9,13 @@ import logging
 
 from app.database.connection import get_db
 from app.schemas import AuraQuery, AuraMessageResponse
-from app.core.security import verify_token
 from app.models import User
 from app.services.technical_reasoning import TechnicalReasoningEngine
+from app.routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/aura", tags=["Technical Reasoning"])
-
-from app.routes.auth import get_current_user
-
 
 @router.post(
     "/query",
@@ -65,8 +62,6 @@ def technical_query(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         logger.error(f"Error in technical query: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -89,12 +84,12 @@ def get_history(
 
     **Query Parameters:**
     - limit: Maximum number of conversations (1-100)
+    - token: JWT access token
 
     **Returns:**
     - List of recent interactions
     """
     try:
-
         from app.models import ConversationHistory
 
         conversations = (
@@ -142,13 +137,15 @@ def get_stats(
     """
     Get technical reasoning statistics for current user.
 
+    **Query Parameters:**
+    - token: JWT access token
+
     **Returns:**
     - Query count
     - Average confidence
     - Top domains
     """
     try:
-
         from app.models import ConversationHistory
         import statistics
 
@@ -198,11 +195,13 @@ def get_aura_state(
     """
     Get current AURA state for current user.
 
+    **Query Parameters:**
+    - token: JWT access token
+
     **Returns:**
     - AURA state (persona, context window, etc.)
     """
     try:
-        
         from app.models import AuraState
         
         aura_state = db.query(AuraState).filter(AuraState.user_id == user.id).first()

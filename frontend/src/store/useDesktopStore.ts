@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type AppType = 'knowledge' | 'aura' | 'ingestion' | 'settings' | 'caffeine'
+export type AppType = 'knowledge' | 'aura' | 'ingestion' | 'settings' | 'caffeine' | 'digest' | 'search'
 
 export interface AppWindow {
   id: string
@@ -8,6 +8,7 @@ export interface AppWindow {
   appType: AppType
   isOpen: boolean
   isMinimized: boolean
+  isMaximized: boolean
   zIndex: number
   position: { x: number; y: number }
   size: { width: number; height: number }
@@ -34,6 +35,7 @@ interface DesktopStore {
   closeWindow: (id: string) => void
   focusWindow: (id: string) => void
   toggleMinimize: (id: string) => void
+  toggleMaximize: (id: string) => void
   updateWindowPosition: (id: string, position: { x: number; y: number }) => void
   updateWindowSize: (id: string, size: { width: number; height: number }) => void
 
@@ -60,7 +62,7 @@ export const useDesktopStore = create<DesktopStore>((set, get) => ({
         const newZ = ++zIndexCounter
         return {
           windows: state.windows.map(w => 
-            w.id === id ? { ...w, isOpen: true, isMinimized: false, zIndex: newZ } : w
+            w.id === id ? { ...w, isOpen: true, isMinimized: false, isMaximized: false, zIndex: newZ } : w
           ),
           activeWindowId: id
         }
@@ -73,6 +75,7 @@ export const useDesktopStore = create<DesktopStore>((set, get) => ({
         appType,
         isOpen: true,
         isMinimized: false,
+        isMaximized: false,
         zIndex: ++zIndexCounter,
         position: defaultProps?.position || { x: 100 + state.windows.length * 40, y: 100 + state.windows.length * 40 },
         size: defaultProps?.size || { width: 800, height: 600 }
@@ -116,7 +119,7 @@ export const useDesktopStore = create<DesktopStore>((set, get) => ({
       if (!win) return state
       
       const willMinimize = !win.isMinimized
-      const newWindows = state.windows.map(w => w.id === id ? { ...w, isMinimized: willMinimize } : w)
+      const newWindows = state.windows.map(w => w.id === id ? { ...w, isMinimized: willMinimize, isMaximized: false } : w)
       
       let nextActive = state.activeWindowId
       if (willMinimize && state.activeWindowId === id) {
@@ -133,6 +136,21 @@ export const useDesktopStore = create<DesktopStore>((set, get) => ({
       }
 
       return { windows: newWindows, activeWindowId: nextActive }
+    })
+  },
+
+  toggleMaximize: (id) => {
+    set((state) => {
+      const win = state.windows.find(w => w.id === id)
+      if (!win) return state
+      
+      const isMaximized = !win.isMaximized
+      return {
+        windows: state.windows.map(w => 
+          w.id === id ? { ...w, isMaximized, isMinimized: false } : w
+        ),
+        activeWindowId: id
+      }
     })
   },
 

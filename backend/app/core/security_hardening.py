@@ -37,6 +37,8 @@ class RateLimiter:
         self.requests_per_minute = requests_per_minute
         self.requests_per_hour = requests_per_hour
         self.user_requests: Dict[str, list] = defaultdict(list)
+        self.auth_requests: Dict[str, list] = defaultdict(list)
+        self.auth_requests_per_minute = int(os.getenv("AUTH_RATE_LIMIT_PER_MINUTE", "10"))
 
     def is_rate_limited(self, user_id: str) -> tuple[bool, Optional[str]]:
         """
@@ -69,6 +71,19 @@ class RateLimiter:
 
         # Record this request
         self.user_requests[user_id].append(now)
+        return False, None
+
+    def is_auth_rate_limited(self, identifier: str) -> tuple[bool, Optional[str]]:
+        """Apply a stricter per-minute limit to authentication endpoints."""
+        now = time.time()
+        one_minute_ago = now - 60
+        self.auth_requests[identifier] = [
+            t for t in self.auth_requests[identifier]
+            if t > one_minute_ago
+        ]
+        if len(self.auth_requests[identifier]) >= self.auth_requests_per_minute:
+            return True, f"Auth rate limit exceeded: {self.auth_requests_per_minute} requests/minute"
+        self.auth_requests[identifier].append(now)
         return False, None
 
     def get_remaining_requests(self, user_id: str) -> Dict[str, int]:
@@ -281,6 +296,26 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Any:
         """Process request through security checks."""
+        client_host = request.client.host if request.client else "unknown"
+        identifier = request.headers.get("Authorization") or client_host
+
+        if request.url.path in {"/auth/register", "/auth/login", "/auth/refresh"}:
+            is_limited, reason = self.rate_limiter.is_auth_rate_limited(identifier)
+            if is_limited:
+                logger.warning(f"Auth rate limit hit for {client_host}: {reason}")
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={"success": False, "message": reason, "code": status.HTTP_429_TOO_MANY_REQUESTS}
+                )
+
+        is_limited, reason = self.rate_limiter.is_rate_limited(identifier)
+        if is_limited:
+            logger.warning(f"Rate limit hit for {client_host}: {reason}")
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={"success": False, "message": reason, "code": status.HTTP_429_TOO_MANY_REQUESTS}
+            )
+
         # Extract user ID if available
         user_id = None
         if "user" in request.scope:

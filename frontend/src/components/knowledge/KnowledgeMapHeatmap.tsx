@@ -64,7 +64,7 @@ export const KnowledgeMapHeatmap: React.FC<KnowledgeMapHeatmapProps> = ({
         if (!mountRef.current) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0e27); // Dark background
+        scene.background = null; // Transparent background to show video
         sceneRef.current = scene;
 
         const width = mountRef.current.clientWidth;
@@ -246,7 +246,7 @@ export const KnowledgeMapHeatmap: React.FC<KnowledgeMapHeatmapProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-b from-gray-900 to-black">
+    <div className="relative w-full h-full bg-transparent">
       {/* 3D Canvas */}
       <div
         ref={mountRef}

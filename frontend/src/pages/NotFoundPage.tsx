@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Compass } from 'lucide-react'
+import AuthBackground from '@/components/auth/AuthBackground'
 
 export default function NotFoundPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="flex relative min-h-screen items-center justify-center bg-background overflow-hidden selection:bg-secondary/20 selection:text-secondary">
+    <div className="flex relative min-h-screen items-center justify-center overflow-hidden selection:bg-secondary/20 selection:text-secondary">
+      <AuthBackground />
       {/* Floating orbs */}
       <div className="absolute top-[15%] left-[15%] w-[35%] h-[35%] bg-error/5 blur-[120px] rounded-full pointer-events-none animate-float" />
       <div className="absolute bottom-[15%] right-[15%] w-[35%] h-[35%] bg-secondary/8 blur-[120px] rounded-full pointer-events-none animate-float" style={{ animationDelay: '2s' }} />

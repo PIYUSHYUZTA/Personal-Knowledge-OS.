@@ -134,18 +134,21 @@ class KnowledgeDistillationEngine:
         # 1. Old (created > 30 days ago)
         # 2. Not yet archive
         # 3. Have low access frequency (optional, for now just old)
-        candidates = self.db_session.query(KnowledgeChunk).filter(
+        query = self.db_session.query(KnowledgeChunk).filter(
             KnowledgeChunk.user_id == self.user_id,
             KnowledgeChunk.created_at < cutoff_date,
-            KnowledgeChunk.is_archived == False,
-        ).all()
+        )
+        if hasattr(KnowledgeChunk, "is_archived"):
+            query = query.filter(KnowledgeChunk.is_archived == False)
+
+        candidates = query.all()
 
         return [
             {
                 "id": str(chunk.id),
-                "content": chunk.content,
+                "content": chunk.chunk_text,
                 "source_id": str(chunk.source_id),
-                "embedding": chunk.embedding,
+                "embedding": chunk.embedding.embedding_vector if chunk.embedding else None,
                 "created_at": chunk.created_at.isoformat(),
             }
             for chunk in candidates
@@ -280,8 +283,10 @@ SYNTHESIS:"""
                     KnowledgeChunk.id == UUID(chunk_id)
                 ).first()
                 if chunk:
-                    chunk.is_archived = True
-                    chunk.archived_at = datetime.utcnow()
+                    if hasattr(chunk, "is_archived"):
+                        chunk.is_archived = True
+                    if hasattr(chunk, "archived_at"):
+                        chunk.archived_at = datetime.utcnow()
 
             self.db_session.commit()
 
@@ -300,10 +305,12 @@ SYNTHESIS:"""
             KnowledgeChunk.user_id == self.user_id
         ).count()
 
-        archived_chunks = self.db_session.query(KnowledgeChunk).filter(
-            KnowledgeChunk.user_id == self.user_id,
-            KnowledgeChunk.is_archived == True,
-        ).count()
+        archived_chunks = 0
+        if hasattr(KnowledgeChunk, "is_archived"):
+            archived_chunks = self.db_session.query(KnowledgeChunk).filter(
+                KnowledgeChunk.user_id == self.user_id,
+                KnowledgeChunk.is_archived == True,
+            ).count()
 
         # Estimate efficiency gains
         compression_ratio = archived_chunks / max(1, total_chunks)

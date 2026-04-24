@@ -372,16 +372,25 @@ class GeminiProvider(LLMBase):
             if stream:
                 return await self._stream_response(model, prompt, **kwargs)
             else:
-                response = model.generate_content(prompt, **kwargs)
+                response = await model.generate_content_async(prompt, **kwargs)
+                # Validate response has candidates
+                if not response.candidates or not hasattr(response, 'text'):
+                    logger.error(f"Gemini API returned no candidates or invalid response: {response}")
+                    return {
+                        "content": "I'm sorry, I couldn't generate a response for that. The API returned an empty result.",
+                        "stop_reason": "empty_response",
+                        "usage": {"input_tokens": 0, "output_tokens": 0}
+                    }
 
+                content = response.text
                 # Estimate tokens (~4 chars per token)
                 input_tokens = len(prompt) // 4
-                output_tokens = len(response.text) // 4
+                output_tokens = len(content) // 4
 
                 self.calculate_cost(input_tokens, output_tokens)
 
                 return {
-                    "content": response.text,
+                    "content": content,
                     "stop_reason": response.candidates[0].finish_reason if response.candidates else "unknown",
                     "tool_calls": self._extract_tool_calls(response),
                     "usage": {
@@ -391,7 +400,9 @@ class GeminiProvider(LLMBase):
                 }
 
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.info(f"FATAL LLM ERROR: {e}")
+            import traceback
+            logger.info(traceback.format_exc())
             raise
 
     async def _stream_response(self, model, prompt, **kwargs):
@@ -476,7 +487,7 @@ class LLMFactory:
                 supports_tools=True,
             )
             cls._providers[LLMProvider.CLAUDE] = ClaudeProvider(config)
-            logger.info("✅ Claude provider initialized")
+            logger.info("Claude provider initialized")
 
         # GPT-4 (Fallback)
         if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
@@ -488,25 +499,30 @@ class LLMFactory:
                 supports_tools=True,
             )
             cls._providers[LLMProvider.GPT4] = GPT4Provider(config)
-            logger.info("✅ GPT-4 provider initialized")
+            logger.info("GPT-4 provider initialized")
 
         # Gemini (Fallback)
         if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
             config = ModelConfig(
                 provider=LLMProvider.GEMINI,
-                model_id="gemini-1.5-flash",
+                model_id="gemini-1.5-flash", # Use Flash for reliability and speed
                 api_key=settings.GEMINI_API_KEY,
                 supports_tools=True,
             )
             cls._providers[LLMProvider.GEMINI] = GeminiProvider(config)
-            logger.info("✅ Gemini provider initialized")
+            logger.info("Gemini 1.5 Pro provider initialized")
 
     @classmethod
     def get_provider(cls, preferred: Optional[LLMProvider] = None) -> LLMBase:
         """Get LLM provider with fallback logic."""
 
         if not cls._providers:
+            print("DEBUG: No providers initialized, calling initialize()")
             cls.initialize()
+
+        if not cls._providers:
+            print("DEBUG: Still no providers after initialization!")
+            raise RuntimeError("No LLM providers available")
 
         # Use preferred if available
         if preferred and preferred in cls._providers:

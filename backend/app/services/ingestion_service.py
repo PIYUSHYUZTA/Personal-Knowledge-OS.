@@ -198,9 +198,9 @@ class IngestionService:
                 logger.info(f"Generated {len(embeddings)} embeddings")
 
             except Exception as e:
-                logger.error(f"Embedding generation failed: {e}")
-                # Continue without embeddings for now
-                pass
+                logger.error(f"CRITICAL: Embedding generation failed: {e}")
+                db.rollback()
+                raise RuntimeError(f"Could not generate embeddings for knowledge base: {e}")
 
             # Update source with chunk count
             source.chunks_count = len(chunks)

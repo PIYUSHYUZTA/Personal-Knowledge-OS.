@@ -7,6 +7,8 @@ Identifies connections between documents, emerging expertise areas, and project 
 
 from typing import Optional, Dict, Any, List
 import logging
+import asyncio
+import os
 from datetime import datetime, timedelta
 import json
 from sqlalchemy.orm import Session
@@ -99,7 +101,7 @@ class WeeklyIntelligenceReport:
                 "title": source.file_name,
                 "source_type": source.source_type,
                 "size_bytes": source.file_size,
-                "chunks_count": source.chunk_count,
+                "chunks_count": source.chunks_count,
                 "ingested_at": source.created_at.isoformat(),
             }
             for source in sources
@@ -274,11 +276,25 @@ class WeeklyIntelligenceReport:
             )
         ]
 
-    async def _synthesize_insights(
+    def _synthesize_insights(
         self, report: Dict[str, Any]
     ) -> tuple[str, List[str], List[str]]:
         """Use LLM to synthesize human-readable insights and recommendations."""
         try:
+            if os.getenv("AURA_ENABLE_LLM_RESPONSES", "false").lower() != "true":
+                sources = report.get("ingested_sources", [])
+                concepts = report.get("new_concepts", [])
+                summary = (
+                    f"{len(sources)} source(s) and {len(concepts)} new concept(s) were analyzed for this week."
+                )
+                insights = [
+                    "No new knowledge clusters were detected yet." if not concepts else "New concepts are available for review."
+                ]
+                recommendations = [
+                    "Add more knowledge sources to improve weekly intelligence quality."
+                ]
+                return summary, insights, recommendations
+
             # Build context
             sources_text = "\n".join(
                 f"- {s['title']} ({s['chunks_count']} chunks)"
@@ -325,10 +341,17 @@ RECOMMENDATIONS:
 - [recommendation 2]
 """
 
-            response = await self.llm.generate(
+            try:
+                asyncio.get_running_loop()
+                raise RuntimeError("Synchronous intelligence synthesis called from an active event loop")
+            except RuntimeError as loop_error:
+                if "active event loop" in str(loop_error):
+                    raise
+
+            response = asyncio.run(self.llm.generate(
                 prompt=synthesis_prompt,
                 system_prompt="You are a knowledge analyst. Provide insightful, actionable intelligence."
-            )
+            ))
 
             response_text = response.get("content", "")
 
