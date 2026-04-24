@@ -148,11 +148,19 @@ Persona switches based on query intent/keywords automatically.
 - Similarity-based retrieval
 - Context-aware response generation
 
+### 🧠 Autonomous Agentic Reasoning (Phase 6)
+- **Multi-Step Reasoning**: 5-step pipeline (Analyze → Search → Verify → Synthesize → Finalize)
+- **Hybrid Inference**: Intelligent routing between local models (Ollama/Mistral) and cloud providers (Claude/GPT-4o)
+- **Skill Gap Mapper**: Real-time expertise tracking across 12 BCA domains with personalized study roadmaps
+- **Federated P2P Sync**: Secure, cloudless synchronization between home server and mobile devices via encrypted tunnels
+
 ## 🔒 Security
 
 - **JWT Authentication**: Token-based auth with refresh tokens
 - **Password Hashing**: bcrypt with passlib
 - **MPC Handshake**: Optional multi-party computation security
+- **Federated Privacy**: Local-first data architecture ensures sensitive information never leaves your hardware
+
 - **CORS Protection**: Configurable origins
 - **SQL Injection Prevention**: Parameterized queries via SQLAlchemy
 
@@ -286,6 +294,6 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Status**: Alpha (v1.0.0-alpha)
-**Last Updated**: 2026-03-09
+**Status**: Beta (v1.6.0-sovereign)
+**Last Updated**: 2026-04-24
 # Personal-Knowledge-OS.
