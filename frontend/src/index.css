@@ -175,10 +175,17 @@
 }
 
 @keyframes slow-drift {
-  0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(2%, 1%) scale(1.02); }
-  66% { transform: translate(-1%, 2%) scale(0.98); }
-  100% { transform: translate(0, 0) scale(1); }
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  33% { transform: translate(1%, 0.5%) scale(1.01) rotate(0.2deg); }
+  66% { transform: translate(-0.5%, 1%) scale(0.99) rotate(-0.1deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
+  25% { transform: translateY(-10px) translateX(5px); opacity: 0.5; }
+  50% { transform: translateY(-5px) translateX(-5px); opacity: 0.3; }
+  75% { transform: translateY(10px) translateX(2px); opacity: 0.6; }
 }
 
 @keyframes digital-pulse {
@@ -304,6 +311,10 @@ body::before {
 
   .animate-slow-drift {
     animation: slow-drift 20s ease-in-out infinite;
+  }
+
+  .animate-float-slow {
+    animation: float-slow 8s ease-in-out infinite;
   }
 
   .animate-digital-pulse {

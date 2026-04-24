@@ -46,6 +46,33 @@ export default function AuthBackground() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.8)_100%)] pointer-events-none" />
       <div className="absolute inset-0 bg-primary/5 mix-blend-overlay pointer-events-none animate-pulse" style={{ animationDuration: '8s' }} />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] bg-[length:100%_2px,3px_100%] pointer-events-none opacity-20" />
+      
+      {/* Chromatic Aberration Layer */}
+      <div className="absolute inset-0 pointer-events-none opacity-10 mix-blend-screen"
+        style={{
+          background: 'linear-gradient(rgba(255,0,0,0.5), transparent), linear-gradient(90deg, rgba(0,0,255,0.5), transparent)',
+          filter: 'blur(2px) contrast(2)'
+        }}
+      />
+
+      {/* Floating Data Particles */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(12)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full bg-primary/40 blur-[1px] animate-float-slow"
+            style={{
+              width: Math.random() * 4 + 2 + 'px',
+              height: Math.random() * 4 + 2 + 'px',
+              left: Math.random() * 100 + '%',
+              top: Math.random() * 100 + '%',
+              animationDelay: i * 0.5 + 's',
+              opacity: Math.random() * 0.5 + 0.2
+            }}
+          />
+        ))}
+      </div>
+
       <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 opacity-40 pointer-events-none blur-3xl animate-slow-drift" />
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noise%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noise)%22/%3E%3C/svg%3E')]" />
     </div>
